@@ -4,6 +4,8 @@
 
 This repo also includes an optional GitHub Pages front door under `site/` for public docs, proofs, and report publishing.
 
+SDT is not a coding assistant replacement. It is a repo continuity and truth layer that helps humans, Copilot, and future AI work against the same repo with less hidden context.
+
 ## What this repo does
 
 This repo gives you a simple CLI called `sdt` that can:
@@ -176,3 +178,13 @@ See:
 
 LICENSE.txt
 NOTICE.md
+
+## Plain-English explanation
+
+SDT is a small repo setup and cleanup tool. It gives a repo the minimum structure needed so a human or AI can quickly understand what the repo is, what is real now, and what to do next.
+
+In plain terms:
+- it helps new repos start cleaner
+- it helps messy repos become easier to understand
+- it helps teams stop losing project truth in chats, heads, and scattered files
+
