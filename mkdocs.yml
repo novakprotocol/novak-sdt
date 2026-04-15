@@ -1,0 +1,33 @@
+site_name: S.D.T. (Software Digital Thread)
+site_description: Repo birth, baseline, continuity, and proof surfaces.
+site_url: https://novakprotocol.github.io/novak-sdt/
+repo_url: https://github.com/novakprotocol/novak-sdt
+repo_name: novakprotocol/novak-sdt
+
+theme:
+  name: material
+  features:
+    - navigation.sections
+    - navigation.tabs
+
+plugins:
+  - search
+
+markdown_extensions:
+  - admonition
+  - pymdownx.details
+  - pymdownx.superfences
+
+nav:
+  - Home: index.md
+  - Proofs: PROOFS.md
+  - Reports: REPORTS.md
+  - GitHub Pages: GITHUB_PAGES.md
+  - SDT 101: SDT_101.md
+  - Created Docs Index: SDT_CREATED_DOCS_INDEX.md
+  - Diagrams:
+      - Operational Flow: DIAGRAM_01_OPERATIONAL_FLOW.md
+      - Files Added: DIAGRAM_02_FILES_ADDED.md
+      - Freshman Explanation: DIAGRAM_03_FRESHMAN_EXPLANATION.md
+  - Operations:
+      - Public vs Protected: PUBLIC_VS_PRIVATE.md
