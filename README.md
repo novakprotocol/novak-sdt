@@ -133,4 +133,4 @@ It is not open source and it does not grant production, redistribution, managed-
 See:
 
 LICENSE.txt
-NOTICE.md
+NOTICE.md\n- `docs/PUBLIC_VS_PRIVATE.md`\n
