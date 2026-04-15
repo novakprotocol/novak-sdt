@@ -9,20 +9,24 @@ from pathlib import Path
 
 START = time.time()
 
+
 def step(message: str) -> None:
     print()
     print("============================================================")
     print(f"[{time.strftime('%F %T')}] {message}")
     print("============================================================")
 
+
 def timer() -> None:
     elapsed = int(time.time() - START)
     print(f"----- elapsed: {elapsed}s -----")
+
 
 def render(text: str, context: dict[str, str]) -> str:
     for key, value in context.items():
         text = text.replace(f"{{{{{key}}}}}", value)
     return text.rstrip() + "\n"
+
 
 def write_file(path: Path, content: str, overwrite: bool) -> str:
     path.parent.mkdir(parents=True, exist_ok=True)
@@ -31,13 +35,16 @@ def write_file(path: Path, content: str, overwrite: bool) -> str:
     path.write_text(content, encoding="utf-8")
     return "written"
 
+
 def in_git_repo(path: Path) -> bool:
     return (path / ".git").exists()
+
 
 def git_init(path: Path) -> None:
     if not in_git_repo(path):
         subprocess.run(["git", "init"], cwd=path, check=True)
         subprocess.run(["git", "branch", "-M", "main"], cwd=path, check=True)
+
 
 def maybe_git_commit(path: Path, message: str, enabled: bool) -> None:
     if not enabled:
@@ -45,16 +52,19 @@ def maybe_git_commit(path: Path, message: str, enabled: bool) -> None:
     subprocess.run(["git", "add", "."], cwd=path, check=True)
     subprocess.run(["git", "commit", "-m", message], cwd=path, check=True)
 
+
 def core_templates() -> dict[str, str]:
     return {
-        ".gitignore": """        .venv/
+        ".gitignore": """\
+.venv/
 __pycache__/
 *.pyc
 *.pyo
 *.pyd
 .local/
 """,
-        "WHAT_IS_REAL_NOW.md": """        # WHAT IS REAL NOW
+        "WHAT_IS_REAL_NOW.md": """\
+# WHAT IS REAL NOW
 
 ## VERIFIED
 - fill me in
@@ -74,7 +84,8 @@ __pycache__/
 ## Step after that
 - fill me in
 """,
-        "PROJECT_STATE.md": """        # PROJECT STATE
+        "PROJECT_STATE.md": """\
+# PROJECT STATE
 
 ## Current objective
 - fill me in
@@ -91,7 +102,8 @@ __pycache__/
 ## Risks / blockers
 - fill me in
 """,
-        "README.md": """        # {{PUBLIC_TITLE}}
+        "README.md": """\
+# {{PUBLIC_TITLE}}
 
 **{{PRODUCT_STATEMENT}}**
 
@@ -107,9 +119,11 @@ __pycache__/
 """,
     }
 
+
 def operator_templates() -> dict[str, str]:
     return {
-        "docs/operator/ZERO_CONTEXT_HANDOFF_CHECKLIST.md": """        # ZERO CONTEXT HANDOFF CHECKLIST
+        "docs/operator/ZERO_CONTEXT_HANDOFF_CHECKLIST.md": """\
+# ZERO CONTEXT HANDOFF CHECKLIST
 
 ## Required identity
 - project name
@@ -138,7 +152,8 @@ def operator_templates() -> dict[str, str]:
 - risks
 - rollback point
 """,
-        "docs/operator/COLD_START_RECOVERY.md": """        # COLD START RECOVERY
+        "docs/operator/COLD_START_RECOVERY.md": """\
+# COLD START RECOVERY
 
 ## First 10 minutes
 1. identify repo, branch, and head commit
@@ -152,7 +167,8 @@ def operator_templates() -> dict[str, str]:
 9. identify rollback point
 10. only then mutate anything
 """,
-        "docs/operator/NEXT_OPERATOR_PACKET_TEMPLATE.md": """        # NEXT OPERATOR PACKET
+        "docs/operator/NEXT_OPERATOR_PACKET_TEMPLATE.md": """\
+# NEXT OPERATOR PACKET
 
 ## Identity
 - Project:
@@ -196,14 +212,17 @@ paste exact next command block here
 """,
     }
 
+
 def product_truth_templates() -> dict[str, str]:
     return {
-        "docs/product/PRODUCT_STATEMENT.md": """        # PRODUCT STATEMENT
+        "docs/product/PRODUCT_STATEMENT.md": """\
+# PRODUCT STATEMENT
 
 ## Canonical product statement
 {{PRODUCT_STATEMENT}}
 """,
-        "docs/product/WHAT_THIS_PRODUCT_IS.md": """        # WHAT THIS PRODUCT IS
+        "docs/product/WHAT_THIS_PRODUCT_IS.md": """\
+# WHAT THIS PRODUCT IS
 
 ## What it is
 - {{PRODUCT_NAME}} is {{PRODUCT_TYPE_DESCRIPTION}}
@@ -217,7 +236,8 @@ def product_truth_templates() -> dict[str, str]:
 ## What it is not
 - fill me in
 """,
-        "docs/product/CURRENT_VS_PLANNED.md": """        # CURRENT VS PLANNED
+        "docs/product/CURRENT_VS_PLANNED.md": """\
+# CURRENT VS PLANNED
 
 ## Implemented now
 - fill me in
@@ -231,7 +251,8 @@ def product_truth_templates() -> dict[str, str]:
 ## Not evidenced
 - fill me in
 """,
-        "docs/product/PRODUCT_SYSTEM_BOUNDARY.md": """        # PRODUCT SYSTEM BOUNDARY
+        "docs/product/PRODUCT_SYSTEM_BOUNDARY.md": """\
+# PRODUCT SYSTEM BOUNDARY
 
 ## Product
 - {{PRODUCT_NAME}} is the product or repo-specific surface
@@ -244,21 +265,6 @@ Do not collapse product identity into system identity.
 """,
     }
 
-def baseline_report(root: Path, required: list[str], product_name: str) -> str:
-    present = [p for p in required if (root / p).exists()]
-    missing = [p for p in required if not (root / p).exists()]
-    return (
-        "# SDT BASELINE GAP REPORT\n\n"
-        f"## Repo path\n- `{root}`\n\n"
-        f"## Product name\n- {product_name}\n\n"
-        "## Present\n"
-        + "".join(f"- `{p}`\n" for p in present)
-        + "\n## Missing before baseline\n"
-        + "".join(f"- `{p}`\n" for p in missing)
-        + "\n## Rule\n"
-        + "This report does not invent missing product truth.\n"
-        + "It highlights where human confirmation is still required.\n"
-    )
 
 def required_floor_files() -> list[str]:
     return [
@@ -273,20 +279,41 @@ def required_floor_files() -> list[str]:
         "docs/product/PRODUCT_SYSTEM_BOUNDARY.md",
     ]
 
+
+def build_gap_report(root: Path, product_name: str) -> str:
+    required = required_floor_files()
+    present = [p for p in required if (root / p).exists()]
+    missing = [p for p in required if not (root / p).exists()]
+
+    return (
+        "# SDT BASELINE GAP REPORT\n\n"
+        f"## Repo path\n- `{root}`\n\n"
+        f"## Product name\n- {product_name}\n\n"
+        "## Present\n"
+        + "".join(f"- `{p}`\n" for p in present)
+        + "\n## Missing before baseline\n"
+        + "".join(f"- `{p}`\n" for p in missing)
+        + "\n## Rule\n"
+        + "This report does not invent missing product truth.\n"
+        + "It highlights where human confirmation is still required.\n"
+    )
+
+
 def apply_floor(root: Path, context: dict[str, str], overwrite: bool, include_report: bool) -> None:
     templates: dict[str, str] = {}
     templates.update(core_templates())
     templates.update(operator_templates())
     templates.update(product_truth_templates())
 
-    required = required_floor_files()
-    report = baseline_report(root, required, context["PRODUCT_NAME"])
     if include_report:
-        templates["docs/status/SDT_BASELINE_GAP_REPORT.md"] = report
+        templates["docs/status/SDT_BASELINE_GAP_REPORT.md"] = build_gap_report(
+            root, context["PRODUCT_NAME"]
+        )
 
     step(f"Applying SDT floor to {root}")
     written = 0
     kept = 0
+
     for rel_path, raw in templates.items():
         result = write_file(root / rel_path, render(raw, context), overwrite)
         if result == "written":
@@ -295,10 +322,12 @@ def apply_floor(root: Path, context: dict[str, str], overwrite: bool, include_re
         else:
             kept += 1
             print(f"KEEP  {rel_path}")
+
     print()
     print(f"written_files={written}")
     print(f"kept_files={kept}")
     timer()
+
 
 def cmd_new(args: argparse.Namespace) -> int:
     root = Path(args.path).resolve()
@@ -308,8 +337,10 @@ def cmd_new(args: argparse.Namespace) -> int:
         "PRODUCT_NAME": args.product_name,
         "PRODUCT_STATEMENT": args.product_statement,
         "PUBLIC_TITLE": args.public_title or "S.D.T. (Software Digital Thread)",
-        "REPO_SUMMARY": args.repo_summary or "A repo initialized with the SDT operator floor and product truth floor.",
-        "PRODUCT_TYPE_DESCRIPTION": args.product_type_description or "a product or serious repo under SDT",
+        "REPO_SUMMARY": args.repo_summary
+        or "A repo initialized with the SDT operator floor and product truth floor.",
+        "PRODUCT_TYPE_DESCRIPTION": args.product_type_description
+        or "a product or serious repo under SDT",
     }
 
     step(f"Creating new repo at {root}")
@@ -317,12 +348,17 @@ def cmd_new(args: argparse.Namespace) -> int:
     timer()
 
     apply_floor(root, context, overwrite=args.overwrite, include_report=True)
-    maybe_git_commit(root, "sdt: initialize repo with operator and product-truth floors", args.git_commit)
+    maybe_git_commit(
+        root,
+        "sdt: initialize repo with operator and product-truth floors",
+        args.git_commit,
+    )
 
     step("DONE")
     print(f"repo_path={root}")
     timer()
     return 0
+
 
 def cmd_baseline(args: argparse.Namespace) -> int:
     root = Path(args.path).resolve()
@@ -334,17 +370,30 @@ def cmd_baseline(args: argparse.Namespace) -> int:
         "PRODUCT_NAME": args.product_name,
         "PRODUCT_STATEMENT": args.product_statement,
         "PUBLIC_TITLE": args.public_title or args.product_name,
-        "REPO_SUMMARY": args.repo_summary or "A repo baselined with the SDT operator floor and product truth floor.",
-        "PRODUCT_TYPE_DESCRIPTION": args.product_type_description or "a product or serious repo under SDT",
+        "REPO_SUMMARY": args.repo_summary
+        or "A repo baselined with the SDT operator floor and product truth floor.",
+        "PRODUCT_TYPE_DESCRIPTION": args.product_type_description
+        or "a product or serious repo under SDT",
     }
 
+    if args.report_only:
+        step(f"Generating report-only baseline view for {root}")
+        print(build_gap_report(root, context["PRODUCT_NAME"]))
+        timer()
+        return 0
+
     apply_floor(root, context, overwrite=args.overwrite, include_report=True)
-    maybe_git_commit(root, "sdt: baseline repo with operator and product-truth floors", args.git_commit)
+    maybe_git_commit(
+        root,
+        "sdt: baseline repo with operator and product-truth floors",
+        args.git_commit,
+    )
 
     step("DONE")
     print(f"repo_path={root}")
     timer()
     return 0
+
 
 def cmd_doctor(args: argparse.Namespace) -> int:
     root = Path(args.path).resolve()
@@ -375,27 +424,47 @@ def cmd_doctor(args: argparse.Namespace) -> int:
     timer()
     return 0
 
+
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(
         prog="sdt",
-        description="Software Digital Thread repo bootstrap and baseline tool."
+        description="Software Digital Thread repo bootstrap and baseline tool.",
     )
     sub = parser.add_subparsers(dest="command", required=True)
 
     common = argparse.ArgumentParser(add_help=False)
     common.add_argument("--path", required=True, help="Target repo path.")
-    common.add_argument("--product-name", required=True, help="Human-readable product or repo name.")
-    common.add_argument("--product-statement", required=True, help="Canonical short product statement.")
+    common.add_argument(
+        "--product-name", required=True, help="Human-readable product or repo name."
+    )
+    common.add_argument(
+        "--product-statement", required=True, help="Canonical short product statement."
+    )
     common.add_argument("--public-title", default="", help="README title.")
     common.add_argument("--repo-summary", default="", help="README summary.")
-    common.add_argument("--product-type-description", default="", help="Short description for WHAT_THIS_PRODUCT_IS.")
-    common.add_argument("--overwrite", action="store_true", help="Overwrite existing files.")
-    common.add_argument("--git-commit", action="store_true", help="Create a git commit after writing files.")
+    common.add_argument(
+        "--product-type-description",
+        default="",
+        help="Short description for WHAT_THIS_PRODUCT_IS.",
+    )
+    common.add_argument(
+        "--overwrite", action="store_true", help="Overwrite existing files."
+    )
+    common.add_argument(
+        "--git-commit", action="store_true", help="Create a git commit after writing files."
+    )
 
     new_p = sub.add_parser("new", parents=[common], help="Create a new repo with SDT floors.")
     new_p.set_defaults(func=cmd_new)
 
-    base_p = sub.add_parser("baseline", parents=[common], help="Baseline an existing repo with SDT floors.")
+    base_p = sub.add_parser(
+        "baseline", parents=[common], help="Baseline an existing repo with SDT floors."
+    )
+    base_p.add_argument(
+        "--report-only",
+        action="store_true",
+        help="Show the baseline gap report without writing files.",
+    )
     base_p.set_defaults(func=cmd_baseline)
 
     doc_p = sub.add_parser("doctor", help="Check whether a repo has the SDT floors.")
@@ -404,10 +473,12 @@ def build_parser() -> argparse.ArgumentParser:
 
     return parser
 
+
 def main() -> int:
     parser = build_parser()
     args = parser.parse_args()
     return int(args.func(args))
+
 
 if __name__ == "__main__":
     raise SystemExit(main())
