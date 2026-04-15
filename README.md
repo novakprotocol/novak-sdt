@@ -26,6 +26,7 @@ then `sdt` will scaffold those files and make the gap obvious, but a human still
 ## Commands
 
 ### Create a new repo
+
 ```bash
 sdt new \
   --path /tmp/my-product \
