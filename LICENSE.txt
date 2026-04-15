@@ -1,0 +1,32 @@
+NOVAK LIMITED EVALUATION LICENSE
+Version 0.1
+Copyright (c) 2026 Matthew Novak / novakprotocol. All rights reserved.
+
+1. Scope
+This license applies only to the contents of this repository, `novak-sdt`.
+
+2. Limited evaluation permission
+Subject to the restrictions below, you may:
+- clone this repository
+- run this repository
+- modify this repository for your own personal or internal evaluation
+- use this repository on non-production repos for evaluation purposes
+
+3. Restrictions
+You may not, without prior written permission from the Licensor:
+- use this repository in production
+- offer this repository or a derivative as a hosted or managed service
+- sell, sublicense, or commercially distribute this repository
+- redistribute modified or unmodified copies outside your organization
+- remove attribution or copyright notices
+- claim rights in the broader NOVAK Software Digital Thread system beyond this repository
+
+4. Ownership
+All rights not expressly granted are reserved by the Licensor.
+
+5. No warranty
+This software is provided "as is", without warranty of any kind, express or implied.
+
+6. Commercial licensing
+For production use, commercial use, redistribution, support, or custom licensing,
+contact the Licensor for a separate agreement.

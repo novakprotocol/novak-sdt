@@ -1,0 +1,23 @@
+[build-system]
+requires = ["setuptools>=69", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "novak-sdt"
+version = "0.1.0"
+description = "S.D.T. (Software Digital Thread): bootstrap or baseline repos with operator and product-truth floors."
+readme = "README.md"
+requires-python = ">=3.11"
+authors = [
+  { name = "novakprotocol" }
+]
+dependencies = []
+
+[project.scripts]
+sdt = "novak_sdt.cli:main"
+
+[tool.setuptools]
+package-dir = {"" = "src"}
+
+[tool.setuptools.packages.find]
+where = ["src"]
