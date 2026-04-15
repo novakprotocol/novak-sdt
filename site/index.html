@@ -1,0 +1,103 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>S.D.T. — Software Digital Thread</title>
+  <meta name="description" content="Create or baseline repos so humans and AI can understand what is real, what is next, and how the repo is governed.">
+  <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+  <header class="hero">
+    <div class="wrap">
+      <p class="eyebrow">NOVAK Protocol</p>
+      <h1>S.D.T. — Software Digital Thread</h1>
+      <p class="lede">
+        A small tool and operating model for creating or baselining repos so the next human or AI can understand what the repo is, what is real now, and what to do next.
+      </p>
+      <div class="actions">
+        <a class="button primary" href="https://github.com/novakprotocol/novak-sdt">View repo</a>
+        <a class="button" href="https://github.com/novakprotocol/novak-sdt/releases">Releases</a>
+      </div>
+    </div>
+  </header>
+
+  <main>
+    <section class="wrap section">
+      <h2>What this is</h2>
+      <p>
+        SDT is a repo birth and repo baseline system. It adds a minimum continuity floor so serious repos stop depending on tribal memory, hidden chat context, or one operator carrying the whole project in their head.
+      </p>
+    </section>
+
+    <section class="wrap section grid3">
+      <article class="card">
+        <h3>Birth new repos</h3>
+        <p>Start a fresh repo with the operator floor, product truth floor, and status surfaces already in place.</p>
+      </article>
+      <article class="card">
+        <h3>Baseline existing repos</h3>
+        <p>Inspect a repo, show what is missing, and add the minimum survival structure without pretending to invent missing product truth.</p>
+      </article>
+      <article class="card">
+        <h3>Generate reports</h3>
+        <p>Produce Markdown and HTML repo reports that show floor coverage, governance surfaces, discovered docs, and current repo state.</p>
+      </article>
+    </section>
+
+    <section class="wrap section">
+      <h2>How it works</h2>
+      <ol class="flow">
+        <li>Clone and install <code>novak-sdt</code></li>
+        <li>Run <code>sdt new</code>, <code>sdt baseline</code>, or <code>sdt doctor</code></li>
+        <li>Generate a repo report and use the repo with less hidden context</li>
+      </ol>
+      <pre><code>git clone https://github.com/novakprotocol/novak-sdt.git
+cd novak-sdt
+python3 -m venv .venv
+. .venv/bin/activate
+python3 -m pip install -e .
+
+sdt baseline   --path /path/to/existing-repo   --product-name "Existing Product"   --product-statement "Existing Product is a product for X."</code></pre>
+    </section>
+
+    <section class="wrap section">
+      <h2>Proof right now</h2>
+      <ul class="proof">
+        <li>CLI installed and running on the real control host</li>
+        <li>Template validator and template workflow are in place</li>
+        <li>Markdown and HTML repo reports are generated from real repos</li>
+        <li>Clean birth proof exists from template to first independent commit</li>
+      </ul>
+    </section>
+
+    <section class="wrap section grid2">
+      <article class="card">
+        <h3>Public</h3>
+        <p>Public tooling, public docs, public examples, public releases, public Pages front door.</p>
+      </article>
+      <article class="card">
+        <h3>Protected</h3>
+        <p>Control-plane truth, raw operator playbooks, adoption audits, private runtime material, and deeper repo governance surfaces.</p>
+      </article>
+    </section>
+
+    <section class="wrap section">
+      <h2>Read next</h2>
+      <ul class="links">
+        <li><a href="https://github.com/novakprotocol/novak-sdt/blob/main/README.md">README</a></li>
+        <li><a href="https://github.com/novakprotocol/novak-sdt/blob/main/docs/SDT_101.md">SDT 101</a></li>
+        <li><a href="https://github.com/novakprotocol/novak-sdt/blob/main/docs/DIAGRAM_01_OPERATIONAL_FLOW.md">Operational flow</a></li>
+        <li><a href="https://github.com/novakprotocol/novak-sdt/blob/main/docs/PUBLIC_VS_PRIVATE.md">Public vs protected</a></li>
+        <li><a href="https://github.com/novakprotocol/novak-repo-template">Template repo</a></li>
+      </ul>
+    </section>
+  </main>
+
+  <footer class="footer">
+    <div class="wrap">
+      <p>S.D.T. is the public front door. The deeper control surfaces stay protected.</p>
+    </div>
+  </footer>
+</body>
+</html>

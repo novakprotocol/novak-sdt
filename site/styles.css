@@ -1,0 +1,112 @@
+* { box-sizing: border-box; }
+html { scroll-behavior: smooth; }
+body {
+  margin: 0;
+  font-family: Arial, Helvetica, sans-serif;
+  line-height: 1.55;
+  color: #e8edf2;
+  background: #0b1020;
+}
+a { color: #9fd0ff; text-decoration: none; }
+a:hover { text-decoration: underline; }
+code {
+  background: #121931;
+  padding: 0.15rem 0.35rem;
+  border-radius: 0.35rem;
+}
+pre {
+  background: #0f1529;
+  border: 1px solid #25314f;
+  border-radius: 14px;
+  padding: 1rem;
+  overflow-x: auto;
+}
+.wrap {
+  width: min(1100px, calc(100% - 2rem));
+  margin: 0 auto;
+}
+.hero {
+  padding: 5rem 0 3rem;
+  background: linear-gradient(180deg, #0f1830 0%, #0b1020 100%);
+  border-bottom: 1px solid #1c2745;
+}
+.eyebrow {
+  margin: 0 0 0.75rem;
+  color: #7fb3ff;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  font-size: 0.85rem;
+}
+h1 {
+  margin: 0;
+  font-size: clamp(2.2rem, 5vw, 4rem);
+  line-height: 1.05;
+}
+h2 {
+  margin-top: 0;
+  font-size: 1.8rem;
+}
+h3 {
+  margin-top: 0;
+  font-size: 1.15rem;
+}
+.lede {
+  max-width: 760px;
+  font-size: 1.15rem;
+  color: #c6d5ea;
+  margin: 1rem 0 0;
+}
+.actions {
+  display: flex;
+  gap: 0.75rem;
+  margin-top: 1.5rem;
+  flex-wrap: wrap;
+}
+.button {
+  display: inline-block;
+  padding: 0.8rem 1rem;
+  border-radius: 12px;
+  border: 1px solid #31446e;
+  color: #e8edf2;
+  background: #101833;
+}
+.button.primary {
+  background: #2d6cff;
+  border-color: #2d6cff;
+}
+.section {
+  padding: 3rem 0;
+}
+.grid2, .grid3 {
+  display: grid;
+  gap: 1rem;
+}
+.grid2 {
+  grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+}
+.grid3 {
+  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+}
+.card {
+  background: #101833;
+  border: 1px solid #25314f;
+  border-radius: 18px;
+  padding: 1.1rem;
+}
+.flow {
+  padding-left: 1.25rem;
+}
+.proof, .links {
+  padding-left: 1.2rem;
+}
+.footer {
+  border-top: 1px solid #1c2745;
+  padding: 1.5rem 0 3rem;
+  color: #a7b8cf;
+}
+@media (max-width: 640px) {
+  .hero {
+    padding-top: 4rem;
+  }
+}
