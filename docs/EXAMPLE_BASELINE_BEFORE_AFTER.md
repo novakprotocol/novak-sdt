@@ -53,3 +53,8 @@ scaffold the missing product truth floor
 create a baseline gap report
 make missing truth obvious
 make the repo easier to continue safely
+Example command
+sdt baseline   --path /path/to/existing-repo   --product-name "Existing Product"   --product-statement "Existing Product is a product for X."
+Report-only example
+sdt baseline   --path /path/to/existing-repo   --product-name "Existing Product"   --product-statement "Existing Product is a product for X."   --report-only
+
