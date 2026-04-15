@@ -12,10 +12,11 @@ This repo gives you a simple CLI called `sdt` that can:
 - baseline an existing repo with missing SDT floor files
 - generate a report-only baseline view without writing files
 - run a doctor check to show what is missing
+- generate Markdown and HTML repo reports
 
 ## What it does not do
 
-It does not magically invent your missing product truth.
+It does not magically invent missing product truth.
 
 If your repo does not clearly state:
 - what the product is
@@ -49,27 +50,26 @@ sdt baseline \
   --report-only
 Check a repo
 sdt doctor --path /path/to/repo
+Generate a repo report
+python3 tools/sdt_repo_report.py --path /path/to/repo
 How people actually use novak-sdt
-
-This is the plain-English answer you should give people.
-
-If they ask “do I download it?”
+Do I download it?
 
 Yes.
 
-They either:
+You either:
 
 clone the repo, or
 download the source zip from GitHub.
-If they ask “then what?”
+Then what?
 
-They install it locally and run one of three commands:
+Install it locally and run one of these:
 
 sdt new
 sdt baseline
 sdt doctor
-The actual flow is this
-For a brand new repo
+python3 tools/sdt_repo_report.py --path ...
+Brand new repo flow
 git clone https://github.com/novakprotocol/novak-sdt.git
 cd novak-sdt
 python3 -m venv .venv
@@ -86,7 +86,7 @@ That creates a new repo folder with:
 operator floor files
 product truth floor files
 a baseline gap report
-For an existing repo
+Existing repo flow
 git clone https://github.com/novakprotocol/novak-sdt.git
 cd novak-sdt
 python3 -m venv .venv
@@ -100,33 +100,73 @@ sdt baseline \
 
 That adds the SDT floor files to an existing repo.
 
-If they only want to inspect first
+Inspect first without writing files
 sdt baseline \
   --path /path/to/existing-repo \
   --product-name "Existing Product" \
   --product-statement "Existing Product is a product for X." \
   --report-only
 
-That does not write files.
-It only shows the gap report.
+That only shows the gap report.
 
-If they want to check whether a repo already has the floor
-sdt doctor --path /path/to/repo
+Generate a Markdown and HTML report
+python3 tools/sdt_repo_report.py --path /path/to/repo
 
-That tells them whether the required SDT floor files are present.
+That generates:
 
-The simplest explanation to give people
+docs/status/SDT_REPO_REPORT.md
+docs/status/SDT_REPO_REPORT.html
+Optional GitHub Pages site
 
-Use this:
+This repo includes a simple static GitHub Pages front door under site/ plus a Pages workflow under .github/workflows/pages.yml.
 
-novak-sdt is a small tool that creates or adds the minimum survival structure a repo needs so the next human or AI can understand what the project is, what is real now, and what to do next.
+What you get by default
 
+If you clone or fork this repo, you get:
+
+the site files
+the Pages workflow
+the proof/docs/report pages
+What does not happen automatically
+
+A live hosted Pages site is not enabled automatically on your GitHub repo just because these files exist.
+
+If you want your own live Pages site
+
+After pushing the repo to GitHub:
+
+Go to Settings
+Go to Pages
+Under Build and deployment
+Set Source to GitHub Actions
+
+Then wait for the Deploy Pages workflow to complete.
+
+Default project-site URL pattern
+
+Your site URL will usually be:
+
+https://YOUR-GITHUB-NAME.github.io/YOUR-REPO-NAME/
+
+Local preview
+cd site
+python3 -m http.server 8000
+
+Then open:
+
+http://localhost:8000/
+
+Notes
+the Pages site is optional
+it is intended as a public front door, docs surface, and proof/report surface
+do not publish sensitive information in the Pages site
 Learn fast
 docs/SDT_101.md
 docs/EXAMPLE_BASELINE_BEFORE_AFTER.md
 docs/DIAGRAM_01_OPERATIONAL_FLOW.md
 docs/DIAGRAM_02_FILES_ADDED.md
 docs/DIAGRAM_03_FRESHMAN_EXPLANATION.md
+docs/PUBLIC_VS_PRIVATE.md
 Rights
 
 This repository is public for visibility and limited evaluation use.
@@ -135,48 +175,4 @@ It is not open source and it does not grant production, redistribution, managed-
 See:
 
 LICENSE.txt
-NOTICE.md\n- `docs/PUBLIC_VS_PRIVATE.md`\n
-## Optional GitHub Pages site
-
-This repo includes a simple static GitHub Pages front door under `site/` plus a Pages workflow under `.github/workflows/pages.yml`.
-
-### What you get by default
-If you clone or fork this repo, you get:
-- the site files
-- the Pages workflow
-- the proof/docs/report pages
-
-### What does not happen automatically
-A live hosted Pages site is **not** enabled automatically on your GitHub repo just because these files exist.
-
-### If you want your own live Pages site
-After pushing the repo to GitHub:
-
-1. Go to **Settings**
-2. Go to **Pages**
-3. Under **Build and deployment**
-4. Set **Source** to **GitHub Actions**
-
-Then wait for the **Deploy Pages** workflow to complete.
-
-### Default project-site URL pattern
-Your site URL will usually be:
-
-`https://YOUR-GITHUB-NAME.github.io/YOUR-REPO-NAME/`
-
-### Local preview
-You can preview the static site locally:
-
-```bash
-cd site
-python3 -m http.server 8000
-```
-
-Then open:
-
-`http://localhost:8000/`
-
-### Notes
-- the Pages site is optional
-- it is intended as a public front door, docs surface, and proof/report surface
-- do not publish sensitive information in the Pages site
+NOTICE.md
