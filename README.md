@@ -2,6 +2,8 @@
 
 **Bootstrap or baseline repos with the SDT operator floor and product-truth floor.**
 
+This repo also includes an optional GitHub Pages front door under `site/` for public docs, proofs, and report publishing.
+
 ## What this repo does
 
 This repo gives you a simple CLI called `sdt` that can:
@@ -134,3 +136,47 @@ See:
 
 LICENSE.txt
 NOTICE.md\n- `docs/PUBLIC_VS_PRIVATE.md`\n
+## Optional GitHub Pages site
+
+This repo includes a simple static GitHub Pages front door under `site/` plus a Pages workflow under `.github/workflows/pages.yml`.
+
+### What you get by default
+If you clone or fork this repo, you get:
+- the site files
+- the Pages workflow
+- the proof/docs/report pages
+
+### What does not happen automatically
+A live hosted Pages site is **not** enabled automatically on your GitHub repo just because these files exist.
+
+### If you want your own live Pages site
+After pushing the repo to GitHub:
+
+1. Go to **Settings**
+2. Go to **Pages**
+3. Under **Build and deployment**
+4. Set **Source** to **GitHub Actions**
+
+Then wait for the **Deploy Pages** workflow to complete.
+
+### Default project-site URL pattern
+Your site URL will usually be:
+
+`https://YOUR-GITHUB-NAME.github.io/YOUR-REPO-NAME/`
+
+### Local preview
+You can preview the static site locally:
+
+```bash
+cd site
+python3 -m http.server 8000
+```
+
+Then open:
+
+`http://localhost:8000/`
+
+### Notes
+- the Pages site is optional
+- it is intended as a public front door, docs surface, and proof/report surface
+- do not publish sensitive information in the Pages site
