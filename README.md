@@ -55,3 +55,9 @@ It is **not** open source and it does **not** grant production, redistribution, 
 See:
 - `LICENSE.txt`
 - `NOTICE.md`
+
+## Learn fast
+
+- `docs/SDT_101.md`
+- `docs/EXAMPLE_BASELINE_BEFORE_AFTER.md`
+
