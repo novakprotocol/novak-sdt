@@ -10,6 +10,10 @@ def extended_required_floor_files() -> list[str]:
         "docs/LATEST_RUN.md",
         "docs/LATEST_INVENTORY.md",
         "docs/FRESHNESS_GAUGE.md",
+        "docs/history/ATTEMPTS.ndjson",
+        "docs/history/HISTORY_INDEX.md",
+        "docs/history/FAILURE_PATTERNS.md",
+        "docs/history/MISSED_OPPORTUNITIES.md",
     ]
 
 def mkdocs_templates() -> dict[str, str]:
@@ -109,5 +113,18 @@ No inventory snapshot has been recorded yet.
         "docs/FRESHNESS_GAUGE.md": """# Freshness Gauge
 
 No freshness render has been recorded yet.
+""",
+        "docs/history/ATTEMPTS.ndjson": "",
+        "docs/history/HISTORY_INDEX.md": """# History Index
+
+No attempt history has been recorded yet.
+""",
+        "docs/history/FAILURE_PATTERNS.md": """# Failure Patterns
+
+No failure patterns have been recorded yet.
+""",
+        "docs/history/MISSED_OPPORTUNITIES.md": """# Missed Opportunities
+
+No missed opportunities have been recorded yet.
 """,
     }
