@@ -35,3 +35,8 @@ nav:
       - Freshman Explanation: DIAGRAM_03_FRESHMAN_EXPLANATION.md
   - Operations:
       - Public vs Protected: PUBLIC_VS_PRIVATE.md
+  - History:
+      - SDT History Lane: SDT_HISTORY_LANE.md
+      - History Index: history/HISTORY_INDEX.md
+      - Failure Patterns: history/FAILURE_PATTERNS.md
+      - Missed Opportunities: history/MISSED_OPPORTUNITIES.md
