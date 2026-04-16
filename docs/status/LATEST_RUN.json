@@ -1,0 +1,10 @@
+{
+  "run_id": "2026-04-16T09-00-46Z--sdt-serious-receipt-smoke",
+  "run_label": "sdt-serious-receipt-smoke",
+  "status": "PASS",
+  "generated_utc": "2026-04-16 09:00:46 UTC",
+  "head_after": "bfd9b6f3e4465736a3bddb4276041392e8137839",
+  "next_step": "use serious mode in the observability repo before Harvest role work",
+  "public_url": "",
+  "repo_path": "/root/novak-sdt"
+}

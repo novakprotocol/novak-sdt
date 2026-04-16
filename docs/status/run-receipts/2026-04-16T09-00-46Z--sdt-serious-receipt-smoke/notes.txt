@@ -1,0 +1,1 @@
+Smoke run only. This proves serious-mode receipt artifacts are being written.

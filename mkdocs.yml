@@ -22,6 +22,7 @@ nav:
   - Home: index.md
   - Proofs: PROOFS.md
   - Reports: REPORTS.md
+  - Serious Mode: SDT_SERIOUS_MODE.md
   - Current Repo Report (Markdown): status/SDT_REPO_REPORT.md
   - GitHub Pages: GITHUB_PAGES.md
   - Case Study: CASE_STUDY.md

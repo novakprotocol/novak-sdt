@@ -1,0 +1,7 @@
+ M .gitignore
+ M mkdocs.yml
+?? bin/
+?? docs/SDT_SERIOUS_MODE.md
+?? docs/status/run-receipts/
+?? docs/templates/
+?? tools/sdt_write_receipt.py

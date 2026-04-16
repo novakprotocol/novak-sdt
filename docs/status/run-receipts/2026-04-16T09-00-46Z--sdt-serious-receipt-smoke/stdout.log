@@ -1,0 +1,60 @@
+
+============================================================
+[DAY-00] RUN START
+============================================================
+RUN_LABEL:          sdt-serious-receipt-smoke
+START_LOCAL:        2026-04-16 09:00:46 UTC
+START_UTC:          2026-04-16 09:00:46 UTC
+DAY_TOTAL_SEC_IN:   0
+DAY_RUN_COUNT_IN:   0
+STATE_FILE:         /root/novak-sdt/.sdt-state/DAY-00.env
+RUN_BODY:           /tmp/sdt-serious-smoke.sh
+REPO_PATH:          /root/novak-sdt
+
+============================================================
+[DAY-00] [2026-04-16 09:00:46 UTC] 01 - show repo truth
+============================================================
+/root/novak-sdt
+bfd9b6f (HEAD -> main, origin/main) m01-docs: ignore mkdocs build output
+6794bb5 m01-docs: expand mkdocs nav and add case study page
+343257a m01-docs: move public docs layer to mkdocs
+478655e m01-docs: add sdt created docs index
+e6404af m01-docs: add positioning line and plain-english explanation
+ M .gitignore
+ M mkdocs.yml
+?? bin/
+?? docs/SDT_SERIOUS_MODE.md
+?? docs/status/run-receipts/
+?? docs/templates/
+?? tools/sdt_write_receipt.py
+----- run_elapsed_sec: 0 | day_total_if_success_sec: 0 | day_run_count_if_success: 1 -----
+
+============================================================
+[DAY-00] [2026-04-16 09:00:46 UTC] 02 - prove receipt writer
+============================================================
+----- run_elapsed_sec: 0 | day_total_if_success_sec: 0 | day_run_count_if_success: 1 -----
+
+============================================================
+[DAY-00] [2026-04-16 09:00:46 UTC] 03 - set next step
+============================================================
+----- run_elapsed_sec: 0 | day_total_if_success_sec: 0 | day_run_count_if_success: 1 -----
+WROTE /root/novak-sdt/docs/status/run-receipts/2026-04-16T09-00-46Z--sdt-serious-receipt-smoke/run.json
+WROTE /root/novak-sdt/docs/status/run-receipts/2026-04-16T09-00-46Z--sdt-serious-receipt-smoke/run.md
+WROTE /root/novak-sdt/docs/status/LATEST_RUN.json
+APPENDED /root/novak-sdt/docs/status/RUN_LEDGER.ndjson
+
+============================================================
+[DAY-00] RUN COMPLETE
+============================================================
+RUN_LABEL:          sdt-serious-receipt-smoke
+STATUS:             PASS
+START_LOCAL:        2026-04-16 09:00:46 UTC
+START_UTC:          2026-04-16 09:00:46 UTC
+END_LOCAL:          2026-04-16 09:00:46 UTC
+END_UTC:            2026-04-16 09:00:46 UTC
+RUN_ELAPSED_SEC:    0
+DAY_TOTAL_SEC:      0
+DAY_RUN_COUNT:      1
+STATE_FILE:         /root/novak-sdt/.sdt-state/DAY-00.env
+RECEIPT_DIR:        /root/novak-sdt/docs/status/run-receipts/2026-04-16T09-00-46Z--sdt-serious-receipt-smoke
+EXIT_CODE:          0
