@@ -13,6 +13,7 @@ def extended_required_floor_files() -> list[str]:
         "docs/FRESHNESS_GAUGE.md",
         "docs/history/ATTEMPTS.ndjson",
         "docs/history/HISTORY_INDEX.md",
+        "docs/history/HISTORY_SUMMARY.md",
         "docs/history/FAILURE_PATTERNS.md",
         "docs/history/MISSED_OPPORTUNITIES.md",
         "docs/SDT_HISTORY_LANE.md",
@@ -56,6 +57,7 @@ nav:
   - History Lane: SDT_HISTORY_LANE.md
   - History:
       - History Index: history/HISTORY_INDEX.md
+      - History Summary: history/HISTORY_SUMMARY.md
       - Failure Patterns: history/FAILURE_PATTERNS.md
       - Missed Opportunities: history/MISSED_OPPORTUNITIES.md
 """,
@@ -161,6 +163,10 @@ bin/history-import.sh /path/to/log.txt
 "docs/history/HISTORY_INDEX.md": """# History Index
 
 No attempt history has been recorded yet.
+""",
+        "docs/history/HISTORY_SUMMARY.md": """# History Summary
+
+No history summary has been recorded yet.
 """,
 "docs/history/FAILURE_PATTERNS.md": """# Failure Patterns
 
@@ -298,15 +304,35 @@ f"- inventory_status: {classify(inv_age)}",
 (docs / "FRESHNESS_GAUGE.md").write_text("\n".join(lines) + "\n", encoding="utf-8")
 print("WROTE docs/FRESHNESS_GAUGE.md")
 """,
-"tools/archive_history_log.py": """#!/usr/bin/env python3
+        "tools/archive_history_log.py": """#!/usr/bin/env python3
 from __future__ import annotations
 
 import json
 import re
 import shutil
 import sys
+from collections import Counter
 from datetime import UTC, datetime
 from pathlib import Path
+
+
+def classify_failure(line: str) -> str:
+    lowered = line.lower()
+    if "permission denied" in lowered:
+        return "permission"
+    if "command not found" in lowered:
+        return "missing-command"
+    if "traceback" in lowered:
+        return "python-traceback"
+    if "syntaxerror" in lowered:
+        return "python-syntax"
+    if "indentationerror" in lowered:
+        return "python-indentation"
+    if "mkdocs" in lowered:
+        return "mkdocs"
+    if "error" in lowered or "fail" in lowered:
+        return "generic-error"
+    return "other"
 
 
 def main() -> int:
@@ -340,6 +366,7 @@ def main() -> int:
         line for line in lines
         if "Permission denied" in line or "command not found" in line
     ]
+    failure_classes = Counter(classify_failure(line) for line in failure_lines)
 
     attempt_record = {
         "archived_utc": datetime.now(UTC).strftime("%Y-%m-%d %H:%M:%S UTC"),
@@ -348,13 +375,19 @@ def main() -> int:
         "line_count": len(lines),
         "failure_line_count": len(failure_lines),
         "missed_opportunity_count": len(missed_lines),
+        "failure_classes": dict(sorted(failure_classes.items())),
     }
 
     attempts_path = history / "ATTEMPTS.ndjson"
     with attempts_path.open("a", encoding="utf-8") as handle:
         handle.write(json.dumps(attempt_record, sort_keys=True) + "\\n")
 
+    attempt_count = sum(
+        1 for line in attempts_path.read_text(encoding="utf-8").splitlines() if line.strip()
+    )
+
     history_index = history / "HISTORY_INDEX.md"
+    history_summary = history / "HISTORY_SUMMARY.md"
     failure_patterns = history / "FAILURE_PATTERNS.md"
     missed_opportunities = history / "MISSED_OPPORTUNITIES.md"
 
@@ -367,11 +400,30 @@ def main() -> int:
         encoding="utf-8",
     )
 
+    history_summary.write_text(
+        "# History Summary\\n\\n"
+        f"- archived_attempts_total: `{attempt_count}`\\n"
+        f"- latest_source_name: `{source.name}`\\n"
+        f"- total_failure_lines_in_latest_import: `{len(failure_lines)}`\\n"
+        f"- total_missed_opportunity_lines_in_latest_import: `{len(missed_lines)}`\\n"
+        "\\n## Failure Classes\\n"
+        + (
+            "\\n".join(
+                f"- {key}: {value}"
+                for key, value in sorted(failure_classes.items())
+            )
+            if failure_classes
+            else "- none"
+        )
+        + "\\n",
+        encoding="utf-8",
+    )
+
     failure_patterns.write_text(
         "# Failure Patterns\\n\\n"
         + (
             "\\n".join(
-                f"- {re.sub(r'`', "'", line[:200])}"
+                f"- {re.sub(r'`', "\'", line[:200])}"
                 for line in failure_lines[:25]
             )
             if failure_lines
@@ -385,7 +437,7 @@ def main() -> int:
         "# Missed Opportunities\\n\\n"
         + (
             "\\n".join(
-                f"- {re.sub(r'`', "'", line[:200])}"
+                f"- {re.sub(r'`', "\'", line[:200])}"
                 for line in missed_lines[:25]
             )
             if missed_lines
@@ -398,6 +450,7 @@ def main() -> int:
     print(f"ARCHIVED {source} -> {target}")
     print(f"UPDATED {attempts_path}")
     print(f"UPDATED {history_index}")
+    print(f"UPDATED {history_summary}")
     print(f"UPDATED {failure_patterns}")
     print(f"UPDATED {missed_opportunities}")
     return 0
