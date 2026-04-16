@@ -16,6 +16,7 @@ def extended_required_floor_files() -> list[str]:
         "docs/history/HISTORY_SUMMARY.md",
         "docs/history/HISTORY_TRENDS.md",
         "docs/history/HISTORY_SIGNALS.md",
+        "docs/history/HISTORY_OPERATOR_PAIN.md",
         "docs/history/FAILURE_PATTERNS.md",
         "docs/history/MISSED_OPPORTUNITIES.md",
         "docs/SDT_HISTORY_LANE.md",
@@ -62,6 +63,7 @@ nav:
       - History Summary: history/HISTORY_SUMMARY.md
       - History Trends: history/HISTORY_TRENDS.md
       - History Signals: history/HISTORY_SIGNALS.md
+      - History Operator Pain: history/HISTORY_OPERATOR_PAIN.md
       - Failure Patterns: history/FAILURE_PATTERNS.md
       - Missed Opportunities: history/MISSED_OPPORTUNITIES.md
 """,
@@ -179,6 +181,10 @@ No history trends have been recorded yet.
         "docs/history/HISTORY_SIGNALS.md": """# History Signals
 
 No history signals have been recorded yet.
+""",
+        "docs/history/HISTORY_OPERATOR_PAIN.md": """# History Operator Pain
+
+No operator pain summary has been recorded yet.
 """,
 "docs/history/FAILURE_PATTERNS.md": """# Failure Patterns
 
@@ -362,6 +368,30 @@ def compare_signal(latest: int, previous: int | None) -> str:
     return "flat"
 
 
+def rolling_average(values: list[int]) -> float | None:
+    if not values:
+        return None
+    return sum(values) / len(values)
+
+
+def compare_to_average(latest: int, average: float | None) -> str:
+    if average is None:
+        return "no-prior"
+    if latest >= max(average * 1.5, average + 1.0):
+        return "spike"
+    if latest > average:
+        return "worse"
+    if latest < average:
+        return "improving"
+    return "stable"
+
+
+def fmt_avg(value: float | None) -> str:
+    if value is None:
+        return "none"
+    return f"{value:.2f}"
+
+
 def main() -> int:
     if len(sys.argv) != 2:
         print("usage: archive_history_log.py <logfile>", file=sys.stderr)
@@ -417,6 +447,7 @@ def main() -> int:
 
     latest_record = records[-1] if records else attempt_record
     previous_record = records[-2] if len(records) >= 2 else None
+    prior_window = records[-6:-1] if len(records) >= 2 else []
     attempt_count = len(records)
 
     total_failure_lines = sum(int(record.get("failure_line_count", 0)) for record in records)
@@ -462,6 +493,7 @@ def main() -> int:
     history_summary = history / "HISTORY_SUMMARY.md"
     history_trends = history / "HISTORY_TRENDS.md"
     history_signals = history / "HISTORY_SIGNALS.md"
+    history_operator_pain = history / "HISTORY_OPERATOR_PAIN.md"
     failure_patterns = history / "FAILURE_PATTERNS.md"
     missed_opportunities = history / "MISSED_OPPORTUNITIES.md"
 
@@ -547,16 +579,43 @@ def main() -> int:
     latest_missed_count = int(latest_record.get("missed_opportunity_count", 0))
     previous_missed_count = int(previous_record.get("missed_opportunity_count", 0)) if previous_record else None
 
-    class_keys = sorted(set(latest_classes) | set(previous_classes))
+    prior_failure_values = [int(record.get("failure_line_count", 0)) for record in prior_window]
+    prior_missed_values = [int(record.get("missed_opportunity_count", 0)) for record in prior_window]
+    recent_failure_avg = rolling_average(prior_failure_values)
+    recent_missed_avg = rolling_average(prior_missed_values)
+
+    class_keys = sorted(
+        set(latest_classes)
+        | set(previous_classes)
+        | {str(key) for record in prior_window for key in (record.get("failure_classes", {}) or {}).keys()}
+    )
+
     class_signal_lines: list[str] = []
+    pain_rows: list[tuple[int, int, str, str]] = []
+
     for key in class_keys:
         latest_value = int(latest_classes.get(key, 0) or 0)
         previous_value = int(previous_classes.get(key, 0) or 0) if previous_record else None
         delta_value = latest_value - previous_value if previous_value is not None else None
-        signal_value = compare_signal(latest_value, previous_value)
+        previous_signal = compare_signal(latest_value, previous_value)
+
+        prior_class_values = [
+            int((record.get("failure_classes", {}) or {}).get(key, 0) or 0)
+            for record in prior_window
+        ]
+        recent_avg = rolling_average(prior_class_values)
+        rolling_signal = compare_to_average(latest_value, recent_avg)
+
         class_signal_lines.append(
-            f"- {key}: latest={latest_value}, previous={previous_value if previous_value is not None else 'none'}, delta={delta_value if delta_value is not None else 'n/a'}, signal={signal_value}"
+            f"- {key}: latest={latest_value}, previous={previous_value if previous_value is not None else 'none'}, delta={delta_value if delta_value is not None else 'n/a'}, previous_signal={previous_signal}, recent_average={fmt_avg(recent_avg)}, rolling_signal={rolling_signal}"
         )
+
+        imports_seen = int(trend_map[key]["imports_seen"]) if key in trend_map else 0
+        total_lines_for_key = int(trend_map[key]["total_lines"]) if key in trend_map else 0
+        pain_line = (
+            f"- {key}: total_lines={total_lines_for_key}, imports_seen={imports_seen}, latest_count={latest_value}, previous_count={previous_value if previous_value is not None else 'none'}, recent_average={fmt_avg(recent_avg)}, rolling_signal={rolling_signal}"
+        )
+        pain_rows.append((total_lines_for_key, imports_seen, key, pain_line))
 
     history_signals.write_text(
         "# History Signals\\n\\n"
@@ -564,15 +623,49 @@ def main() -> int:
         f"- latest_source_name: `{latest_record.get('source_name', 'unknown')}`\\n"
         f"- previous_source_name: `{previous_record.get('source_name', 'none') if previous_record else 'none'}`\\n"
         f"- failure_line_signal_vs_previous: `{compare_signal(latest_failure_lines_count, previous_failure_lines_count)}`\\n"
+        f"- failure_line_signal_vs_recent_average: `{compare_to_average(latest_failure_lines_count, recent_failure_avg)}`\\n"
         f"- missed_opportunity_signal_vs_previous: `{compare_signal(latest_missed_count, previous_missed_count)}`\\n"
+        f"- missed_opportunity_signal_vs_recent_average: `{compare_to_average(latest_missed_count, recent_missed_avg)}`\\n"
         f"- latest_failure_lines: `{latest_failure_lines_count}`\\n"
         f"- previous_failure_lines: `{previous_failure_lines_count if previous_failure_lines_count is not None else 'none'}`\\n"
+        f"- recent_average_failure_lines: `{fmt_avg(recent_failure_avg)}`\\n"
         f"- latest_missed_opportunities: `{latest_missed_count}`\\n"
         f"- previous_missed_opportunities: `{previous_missed_count if previous_missed_count is not None else 'none'}`\\n"
-        "\\n## Failure Class Signals vs Previous Import\\n"
+        f"- recent_average_missed_opportunities: `{fmt_avg(recent_missed_avg)}`\\n"
+        "\\n## Failure Class Signals\\n"
         + (
             "\\n".join(class_signal_lines)
             if class_signal_lines
+            else "- none"
+        )
+        + "\\n",
+        encoding="utf-8",
+    )
+
+    sorted_pain_lines = [
+        line for _, _, _, line in sorted(
+            pain_rows,
+            key=lambda item: (-item[0], -item[1], item[2]),
+        )
+    ]
+
+    history_operator_pain.write_text(
+        "# History Operator Pain\\n\\n"
+        f"- archived_attempts_total: `{attempt_count}`\\n"
+        f"- ranked_class_count: `{len(sorted_pain_lines)}`\\n"
+        "\\n## Top Operator Pain Classes\\n"
+        + (
+            "\\n".join(sorted_pain_lines[:10])
+            if sorted_pain_lines
+            else "- none"
+        )
+        + "\\n\\n## Classes Seen In Latest Import\\n"
+        + (
+            "\\n".join(
+                f"- {key}: {value}"
+                for key, value in sorted(latest_classes.items())
+            )
+            if latest_classes
             else "- none"
         )
         + "\\n",
@@ -613,6 +706,7 @@ def main() -> int:
     print(f"UPDATED {history_summary}")
     print(f"UPDATED {history_trends}")
     print(f"UPDATED {history_signals}")
+    print(f"UPDATED {history_operator_pain}")
     print(f"UPDATED {failure_patterns}")
     print(f"UPDATED {missed_opportunities}")
     return 0
