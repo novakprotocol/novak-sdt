@@ -269,6 +269,7 @@ now = datetime.now(UTC)
 def age_days(path: Path) -> int | None:
 if not path.exists():
 return None
+m return None
 mtime = datetime.fromtimestamp(path.stat().st_mtime, tz=UTC)
 return (now - mtime).days
 
@@ -298,7 +299,7 @@ f"- inventory_status: {classify(inv_age)}",
 print("WROTE docs/FRESHNESS_GAUGE.md")
 """,
 "tools/archive_history_log.py": """#!/usr/bin/env python3
-from future import annotations
+from __future__ import annotations
 
 import json
 import re
@@ -307,83 +308,105 @@ import sys
 from datetime import UTC, datetime
 from pathlib import Path
 
+
 def main() -> int:
-if len(sys.argv) != 2:
-print("usage: archive_history_log.py <logfile>", file=sys.stderr)
-return 2
+    if len(sys.argv) != 2:
+        print("usage: archive_history_log.py <logfile>", file=sys.stderr)
+        return 2
 
-source = Path(sys.argv[1]).resolve()
-if not source.is_file():
-    print(f"ERROR: log file not found: {source}", file=sys.stderr)
-    return 1
+    source = Path(sys.argv[1]).resolve()
+    if not source.is_file():
+        print(f"ERROR: log file not found: {source}", file=sys.stderr)
+        return 1
 
-repo = Path(__file__).resolve().parent.parent
-docs = repo / "docs"
-history = docs / "history"
-raw_dir = history / "raw"
-raw_dir.mkdir(parents=True, exist_ok=True)
+    repo = Path(__file__).resolve().parent.parent
+    docs = repo / "docs"
+    history = docs / "history"
+    raw_dir = history / "raw"
+    raw_dir.mkdir(parents=True, exist_ok=True)
 
-stamp = datetime.now(UTC).strftime("%Y%m%dT%H%M%SZ")
-target = raw_dir / f"{stamp}-{source.name}"
-shutil.copy2(source, target)
+    stamp = datetime.now(UTC).strftime("%Y%m%dT%H%M%SZ")
+    target = raw_dir / f"{stamp}-{source.name}"
+    shutil.copy2(source, target)
 
-text = source.read_text(encoding="utf-8", errors="replace")
-lines = text.splitlines()
+    text = source.read_text(encoding="utf-8", errors="replace")
+    lines = text.splitlines()
 
-failure_lines = [line for line in lines if "FAIL" in line or "Error" in line or "ERROR" in line]
-missed_lines = [line for line in lines if "Permission denied" in line or "command not found" in line]
+    failure_lines = [
+        line for line in lines
+        if "FAIL" in line or "Error" in line or "ERROR" in line
+    ]
+    missed_lines = [
+        line for line in lines
+        if "Permission denied" in line or "command not found" in line
+    ]
 
-attempt_record = {
-    "archived_utc": datetime.now(UTC).strftime("%Y-%m-%d %H:%M:%S UTC"),
-    "source_name": source.name,
-    "archived_copy": str(target.relative_to(repo)),
-    "line_count": len(lines),
-    "failure_line_count": len(failure_lines),
-    "missed_opportunity_count": len(missed_lines),
-}
+    attempt_record = {
+        "archived_utc": datetime.now(UTC).strftime("%Y-%m-%d %H:%M:%S UTC"),
+        "source_name": source.name,
+        "archived_copy": str(target.relative_to(repo)),
+        "line_count": len(lines),
+        "failure_line_count": len(failure_lines),
+        "missed_opportunity_count": len(missed_lines),
+    }
 
-attempts_path = history / "ATTEMPTS.ndjson"
-with attempts_path.open("a", encoding="utf-8") as handle:
-    handle.write(json.dumps(attempt_record, sort_keys=True) + "\\n")
+    attempts_path = history / "ATTEMPTS.ndjson"
+    with attempts_path.open("a", encoding="utf-8") as handle:
+        handle.write(json.dumps(attempt_record, sort_keys=True) + "\\n")
 
-history_index = docs / "history" / "HISTORY_INDEX.md"
-failure_patterns = docs / "history" / "FAILURE_PATTERNS.md"
-missed_opportunities = docs / "history" / "MISSED_OPPORTUNITIES.md"
+    history_index = history / "HISTORY_INDEX.md"
+    failure_patterns = history / "FAILURE_PATTERNS.md"
+    missed_opportunities = history / "MISSED_OPPORTUNITIES.md"
 
-history_index.write_text(
-    "# History Index\\n\\n"
-    f"- latest_archive: `{attempt_record['archived_utc']}`\\n"
-    f"- source_name: `{source.name}`\\n"
-    f"- archived_copy: `{attempt_record['archived_copy']}`\\n"
-    f"- line_count: `{len(lines)}`\\n",
-    encoding="utf-8",
-)
+    history_index.write_text(
+        "# History Index\\n\\n"
+        f"- latest_archive: `{attempt_record['archived_utc']}`\\n"
+        f"- source_name: `{source.name}`\\n"
+        f"- archived_copy: `{attempt_record['archived_copy']}`\\n"
+        f"- line_count: `{len(lines)}`\\n",
+        encoding="utf-8",
+    )
 
-failure_patterns.write_text(
-    "# Failure Patterns\\n\\n" +
-    ("\\n".join(f"- {re.sub(r'`', \"'\", line[:200])}" for line in failure_lines[:25]) if failure_lines else "- none") +
-    "\\n",
-    encoding="utf-8",
-)
+    failure_patterns.write_text(
+        "# Failure Patterns\\n\\n"
+        + (
+            "\\n".join(
+                f"- {re.sub(r'`', "'", line[:200])}"
+                for line in failure_lines[:25]
+            )
+            if failure_lines
+            else "- none"
+        )
+        + "\\n",
+        encoding="utf-8",
+    )
 
-missed_opportunities.write_text(
-    "# Missed Opportunities\\n\\n" +
-    ("\\n".join(f"- {re.sub(r'`', \"'\", line[:200])}" for line in missed_lines[:25]) if missed_lines else "- none") +
-    "\\n",
-    encoding="utf-8",
-)
+    missed_opportunities.write_text(
+        "# Missed Opportunities\\n\\n"
+        + (
+            "\\n".join(
+                f"- {re.sub(r'`', "'", line[:200])}"
+                for line in missed_lines[:25]
+            )
+            if missed_lines
+            else "- none"
+        )
+        + "\\n",
+        encoding="utf-8",
+    )
 
-print(f"ARCHIVED {source} -> {target}")
-print(f"UPDATED {attempts_path}")
-print(f"UPDATED {history_index}")
-print(f"UPDATED {failure_patterns}")
-print(f"UPDATED {missed_opportunities}")
-return 0
+    print(f"ARCHIVED {source} -> {target}")
+    print(f"UPDATED {attempts_path}")
+    print(f"UPDATED {history_index}")
+    print(f"UPDATED {failure_patterns}")
+    print(f"UPDATED {missed_opportunities}")
+    return 0
 
-if name == "main":
-raise SystemExit(main())
+
+if __name__ == "__main__":
+    raise SystemExit(main())
 """,
-"bin/history-import.sh": """#!/usr/bin/env bash
+        "bin/history-import.sh": """#!/usr/bin/env bash
 set -Eeuo pipefail
 set +H
 
