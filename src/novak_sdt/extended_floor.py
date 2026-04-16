@@ -7,6 +7,9 @@ def extended_required_floor_files() -> list[str]:
         "docs/ABOUT.md",
         "docs/INSTALLATION.md",
         "docs/SYSTEM_AND_COMPONENT_STATUS.md",
+        "docs/LATEST_RUN.md",
+        "docs/LATEST_INVENTORY.md",
+        "docs/FRESHNESS_GAUGE.md",
     ]
 
 def mkdocs_templates() -> dict[str, str]:
@@ -35,6 +38,9 @@ nav:
   - About: ABOUT.md
   - Installation: INSTALLATION.md
   - System and Component Status: SYSTEM_AND_COMPONENT_STATUS.md
+  - Latest Run: LATEST_RUN.md
+  - Latest Inventory: LATEST_INVENTORY.md
+  - Freshness Gauge: FRESHNESS_GAUGE.md
 """,
         "docs/index.md": """# {{PUBLIC_TITLE}}
 
@@ -88,5 +94,20 @@ This page is the truthful current component view for this repo.
 |---|---|---|---|---|---|---|
 | SDT repo floor | Confirmed at birth or baseline | continuity and truth floor | repo docs | unknown | unknown | run `sdt doctor --path <repo>` |
 | MkDocs floor | Confirmed if these files exist | human-readable docs surface | local docs build or Pages later | unknown | unknown | check for `mkdocs.yml` and docs pages |
+| Latest run placeholder | Confirmed if file exists | future execution truth surface | docs review | unknown | unknown | check `docs/LATEST_RUN.md` |
+| Latest inventory placeholder | Confirmed if file exists | future runtime truth surface | docs review | unknown | unknown | check `docs/LATEST_INVENTORY.md` |
+| Freshness gauge placeholder | Confirmed if file exists | future freshness surface | docs review | unknown | unknown | check `docs/FRESHNESS_GAUGE.md` |
+""",
+        "docs/LATEST_RUN.md": """# Latest Run
+
+No run receipt has been recorded yet.
+""",
+        "docs/LATEST_INVENTORY.md": """# Latest Inventory
+
+No inventory snapshot has been recorded yet.
+""",
+        "docs/FRESHNESS_GAUGE.md": """# Freshness Gauge
+
+No freshness render has been recorded yet.
 """,
     }
