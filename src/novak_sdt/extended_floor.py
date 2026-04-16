@@ -17,6 +17,7 @@ def extended_required_floor_files() -> list[str]:
         "docs/history/HISTORY_TRENDS.md",
         "docs/history/HISTORY_SIGNALS.md",
         "docs/history/HISTORY_OPERATOR_PAIN.md",
+        "docs/history/HISTORY_PRIORITY_QUEUE.md",
         "docs/history/FAILURE_PATTERNS.md",
         "docs/history/MISSED_OPPORTUNITIES.md",
         "docs/SDT_HISTORY_LANE.md",
@@ -64,6 +65,7 @@ nav:
       - History Trends: history/HISTORY_TRENDS.md
       - History Signals: history/HISTORY_SIGNALS.md
       - History Operator Pain: history/HISTORY_OPERATOR_PAIN.md
+      - History Priority Queue: history/HISTORY_PRIORITY_QUEUE.md
       - Failure Patterns: history/FAILURE_PATTERNS.md
       - Missed Opportunities: history/MISSED_OPPORTUNITIES.md
 """,
@@ -185,6 +187,10 @@ No history signals have been recorded yet.
         "docs/history/HISTORY_OPERATOR_PAIN.md": """# History Operator Pain
 
 No operator pain summary has been recorded yet.
+""",
+        "docs/history/HISTORY_PRIORITY_QUEUE.md": """# History Priority Queue
+
+No history priority queue has been recorded yet.
 """,
 "docs/history/FAILURE_PATTERNS.md": """# Failure Patterns
 
@@ -334,6 +340,18 @@ from datetime import UTC, datetime
 from pathlib import Path
 
 
+SEVERITY_WEIGHTS = {
+    "other": 1,
+    "generic-error": 2,
+    "mkdocs": 3,
+    "python-traceback": 4,
+    "permission": 5,
+    "missing-command": 5,
+    "python-syntax": 6,
+    "python-indentation": 6,
+}
+
+
 def classify_failure(line: str) -> str:
     lowered = line.lower()
     if "permission denied" in lowered:
@@ -368,13 +386,13 @@ def compare_signal(latest: int, previous: int | None) -> str:
     return "flat"
 
 
-def rolling_average(values: list[int]) -> float | None:
+def rolling_average(values: list[int | float]) -> float | None:
     if not values:
         return None
     return sum(values) / len(values)
 
 
-def compare_to_average(latest: int, average: float | None) -> str:
+def compare_to_average(latest: int | float, average: float | None) -> str:
     if average is None:
         return "no-prior"
     if latest >= max(average * 1.5, average + 1.0):
@@ -390,6 +408,21 @@ def fmt_avg(value: float | None) -> str:
     if value is None:
         return "none"
     return f"{value:.2f}"
+
+
+def severity_weight_for_class(name: str) -> int:
+    return int(SEVERITY_WEIGHTS.get(name, 1))
+
+
+def decayed_priority_score(name: str, records: list[dict]) -> float:
+    score = 0.0
+    for age, record in enumerate(reversed(records)):
+        classes = record.get("failure_classes", {}) or {}
+        count = int(classes.get(name, 0) or 0)
+        if count <= 0:
+            continue
+        score += float(count * severity_weight_for_class(name)) * (0.85 ** age)
+    return score
 
 
 def main() -> int:
@@ -422,6 +455,11 @@ def main() -> int:
     ]
     failure_classes = Counter(classify_failure(line) for line in failure_lines)
 
+    weighted_severity_total = sum(
+        severity_weight_for_class(key) * int(value)
+        for key, value in failure_classes.items()
+    )
+
     attempt_record = {
         "archived_utc": datetime.now(UTC).strftime("%Y-%m-%d %H:%M:%S UTC"),
         "source_name": source.name,
@@ -430,6 +468,7 @@ def main() -> int:
         "failure_line_count": len(failure_lines),
         "missed_opportunity_count": len(missed_lines),
         "failure_classes": dict(sorted(failure_classes.items())),
+        "weighted_severity_total": weighted_severity_total,
     }
 
     attempts_path = history / "ATTEMPTS.ndjson"
@@ -448,6 +487,8 @@ def main() -> int:
     latest_record = records[-1] if records else attempt_record
     previous_record = records[-2] if len(records) >= 2 else None
     prior_window = records[-6:-1] if len(records) >= 2 else []
+    current_window_3 = records[-3:] if records else []
+    previous_window_3 = records[-6:-3] if len(records) >= 6 else []
     attempt_count = len(records)
 
     total_failure_lines = sum(int(record.get("failure_line_count", 0)) for record in records)
@@ -494,6 +535,7 @@ def main() -> int:
     history_trends = history / "HISTORY_TRENDS.md"
     history_signals = history / "HISTORY_SIGNALS.md"
     history_operator_pain = history / "HISTORY_OPERATOR_PAIN.md"
+    history_priority_queue = history / "HISTORY_PRIORITY_QUEUE.md"
     failure_patterns = history / "FAILURE_PATTERNS.md"
     missed_opportunities = history / "MISSED_OPPORTUNITIES.md"
 
@@ -514,6 +556,7 @@ def main() -> int:
         f"- total_missed_opportunity_lines_across_all_imports: `{total_missed_lines}`\\n"
         f"- total_failure_lines_in_latest_import: `{latest_record.get('failure_line_count', 0)}`\\n"
         f"- total_missed_opportunity_lines_in_latest_import: `{latest_record.get('missed_opportunity_count', 0)}`\\n"
+        f"- weighted_severity_total_in_latest_import: `{latest_record.get('weighted_severity_total', 0)}`\\n"
         "\\n## Failure Classes In Latest Import\\n"
         + (
             "\\n".join(
@@ -562,7 +605,7 @@ def main() -> int:
         + "\\n\\n## Latest 5 Imports\\n"
         + (
             "\\n".join(
-                f"- {record.get('archived_utc', 'unknown')} | {record.get('source_name', 'unknown')} | failure_lines={record.get('failure_line_count', 0)} | missed_opportunities={record.get('missed_opportunity_count', 0)}"
+                f"- {record.get('archived_utc', 'unknown')} | {record.get('source_name', 'unknown')} | failure_lines={record.get('failure_line_count', 0)} | missed_opportunities={record.get('missed_opportunity_count', 0)} | weighted_severity={record.get('weighted_severity_total', 0)}"
                 for record in records[-5:]
             )
             if records
@@ -578,20 +621,34 @@ def main() -> int:
     previous_failure_lines_count = int(previous_record.get("failure_line_count", 0)) if previous_record else None
     latest_missed_count = int(latest_record.get("missed_opportunity_count", 0))
     previous_missed_count = int(previous_record.get("missed_opportunity_count", 0)) if previous_record else None
+    latest_weighted_severity = int(latest_record.get("weighted_severity_total", 0))
+    previous_weighted_severity = int(previous_record.get("weighted_severity_total", 0)) if previous_record else None
 
     prior_failure_values = [int(record.get("failure_line_count", 0)) for record in prior_window]
     prior_missed_values = [int(record.get("missed_opportunity_count", 0)) for record in prior_window]
+    prior_severity_values = [int(record.get("weighted_severity_total", 0)) for record in prior_window]
     recent_failure_avg = rolling_average(prior_failure_values)
     recent_missed_avg = rolling_average(prior_missed_values)
+    recent_severity_avg = rolling_average(prior_severity_values)
+
+    current_window_failure_avg = rolling_average([int(record.get("failure_line_count", 0)) for record in current_window_3])
+    previous_window_failure_avg = rolling_average([int(record.get("failure_line_count", 0)) for record in previous_window_3])
+    current_window_missed_avg = rolling_average([int(record.get("missed_opportunity_count", 0)) for record in current_window_3])
+    previous_window_missed_avg = rolling_average([int(record.get("missed_opportunity_count", 0)) for record in previous_window_3])
+    current_window_severity_avg = rolling_average([int(record.get("weighted_severity_total", 0)) for record in current_window_3])
+    previous_window_severity_avg = rolling_average([int(record.get("weighted_severity_total", 0)) for record in previous_window_3])
 
     class_keys = sorted(
         set(latest_classes)
         | set(previous_classes)
         | {str(key) for record in prior_window for key in (record.get("failure_classes", {}) or {}).keys()}
+        | {str(key) for record in current_window_3 for key in (record.get("failure_classes", {}) or {}).keys()}
+        | {str(key) for record in previous_window_3 for key in (record.get("failure_classes", {}) or {}).keys()}
     )
 
     class_signal_lines: list[str] = []
-    pain_rows: list[tuple[int, int, str, str]] = []
+    pain_rows: list[tuple[float, int, int, str, str]] = []
+    priority_rows: list[tuple[float, int, str, str]] = []
 
     for key in class_keys:
         latest_value = int(latest_classes.get(key, 0) or 0)
@@ -606,16 +663,37 @@ def main() -> int:
         recent_avg = rolling_average(prior_class_values)
         rolling_signal = compare_to_average(latest_value, recent_avg)
 
+        current_window_class_avg = rolling_average([
+            int((record.get("failure_classes", {}) or {}).get(key, 0) or 0)
+            for record in current_window_3
+        ])
+        previous_window_class_avg = rolling_average([
+            int((record.get("failure_classes", {}) or {}).get(key, 0) or 0)
+            for record in previous_window_3
+        ])
+        window_signal = compare_to_average(
+            current_window_class_avg if current_window_class_avg is not None else 0.0,
+            previous_window_class_avg,
+        )
+
         class_signal_lines.append(
-            f"- {key}: latest={latest_value}, previous={previous_value if previous_value is not None else 'none'}, delta={delta_value if delta_value is not None else 'n/a'}, previous_signal={previous_signal}, recent_average={fmt_avg(recent_avg)}, rolling_signal={rolling_signal}"
+            f"- {key}: latest={latest_value}, previous={previous_value if previous_value is not None else 'none'}, delta={delta_value if delta_value is not None else 'n/a'}, previous_signal={previous_signal}, recent_average={fmt_avg(recent_avg)}, rolling_signal={rolling_signal}, current_window_avg={fmt_avg(current_window_class_avg)}, previous_window_avg={fmt_avg(previous_window_class_avg)}, window_signal={window_signal}"
         )
 
         imports_seen = int(trend_map[key]["imports_seen"]) if key in trend_map else 0
         total_lines_for_key = int(trend_map[key]["total_lines"]) if key in trend_map else 0
+        weight = severity_weight_for_class(key)
+        decay_score = decayed_priority_score(key, records)
+
         pain_line = (
-            f"- {key}: total_lines={total_lines_for_key}, imports_seen={imports_seen}, latest_count={latest_value}, previous_count={previous_value if previous_value is not None else 'none'}, recent_average={fmt_avg(recent_avg)}, rolling_signal={rolling_signal}"
+            f"- {key}: total_lines={total_lines_for_key}, imports_seen={imports_seen}, severity_weight={weight}, latest_count={latest_value}, previous_count={previous_value if previous_value is not None else 'none'}, recent_average={fmt_avg(recent_avg)}, rolling_signal={rolling_signal}, decay_priority_score={decay_score:.2f}"
         )
-        pain_rows.append((total_lines_for_key, imports_seen, key, pain_line))
+        pain_rows.append((decay_score, total_lines_for_key, imports_seen, key, pain_line))
+
+        priority_line = (
+            f"- {key}: decay_priority_score={decay_score:.2f}, severity_weight={weight}, total_lines={total_lines_for_key}, imports_seen={imports_seen}, current_window_avg={fmt_avg(current_window_class_avg)}, previous_window_avg={fmt_avg(previous_window_class_avg)}, window_signal={window_signal}"
+        )
+        priority_rows.append((decay_score, weight, key, priority_line))
 
     history_signals.write_text(
         "# History Signals\\n\\n"
@@ -624,14 +702,28 @@ def main() -> int:
         f"- previous_source_name: `{previous_record.get('source_name', 'none') if previous_record else 'none'}`\\n"
         f"- failure_line_signal_vs_previous: `{compare_signal(latest_failure_lines_count, previous_failure_lines_count)}`\\n"
         f"- failure_line_signal_vs_recent_average: `{compare_to_average(latest_failure_lines_count, recent_failure_avg)}`\\n"
+        f"- failure_line_window_signal_last3_vs_previous3: `{compare_to_average(current_window_failure_avg if current_window_failure_avg is not None else 0.0, previous_window_failure_avg)}`\\n"
         f"- missed_opportunity_signal_vs_previous: `{compare_signal(latest_missed_count, previous_missed_count)}`\\n"
         f"- missed_opportunity_signal_vs_recent_average: `{compare_to_average(latest_missed_count, recent_missed_avg)}`\\n"
+        f"- missed_opportunity_window_signal_last3_vs_previous3: `{compare_to_average(current_window_missed_avg if current_window_missed_avg is not None else 0.0, previous_window_missed_avg)}`\\n"
+        f"- weighted_severity_signal_vs_previous: `{compare_signal(latest_weighted_severity, previous_weighted_severity)}`\\n"
+        f"- weighted_severity_signal_vs_recent_average: `{compare_to_average(latest_weighted_severity, recent_severity_avg)}`\\n"
+        f"- weighted_severity_window_signal_last3_vs_previous3: `{compare_to_average(current_window_severity_avg if current_window_severity_avg is not None else 0.0, previous_window_severity_avg)}`\\n"
         f"- latest_failure_lines: `{latest_failure_lines_count}`\\n"
         f"- previous_failure_lines: `{previous_failure_lines_count if previous_failure_lines_count is not None else 'none'}`\\n"
         f"- recent_average_failure_lines: `{fmt_avg(recent_failure_avg)}`\\n"
+        f"- current_window_3_average_failure_lines: `{fmt_avg(current_window_failure_avg)}`\\n"
+        f"- previous_window_3_average_failure_lines: `{fmt_avg(previous_window_failure_avg)}`\\n"
         f"- latest_missed_opportunities: `{latest_missed_count}`\\n"
         f"- previous_missed_opportunities: `{previous_missed_count if previous_missed_count is not None else 'none'}`\\n"
         f"- recent_average_missed_opportunities: `{fmt_avg(recent_missed_avg)}`\\n"
+        f"- current_window_3_average_missed_opportunities: `{fmt_avg(current_window_missed_avg)}`\\n"
+        f"- previous_window_3_average_missed_opportunities: `{fmt_avg(previous_window_missed_avg)}`\\n"
+        f"- latest_weighted_severity: `{latest_weighted_severity}`\\n"
+        f"- previous_weighted_severity: `{previous_weighted_severity if previous_weighted_severity is not None else 'none'}`\\n"
+        f"- recent_average_weighted_severity: `{fmt_avg(recent_severity_avg)}`\\n"
+        f"- current_window_3_average_weighted_severity: `{fmt_avg(current_window_severity_avg)}`\\n"
+        f"- previous_window_3_average_weighted_severity: `{fmt_avg(previous_window_severity_avg)}`\\n"
         "\\n## Failure Class Signals\\n"
         + (
             "\\n".join(class_signal_lines)
@@ -643,9 +735,9 @@ def main() -> int:
     )
 
     sorted_pain_lines = [
-        line for _, _, _, line in sorted(
+        line for _, _, _, _, line in sorted(
             pain_rows,
-            key=lambda item: (-item[0], -item[1], item[2]),
+            key=lambda item: (-item[0], -item[1], -item[2], item[3]),
         )
     ]
 
@@ -666,6 +758,27 @@ def main() -> int:
                 for key, value in sorted(latest_classes.items())
             )
             if latest_classes
+            else "- none"
+        )
+        + "\\n",
+        encoding="utf-8",
+    )
+
+    sorted_priority_lines = [
+        line for _, _, _, line in sorted(
+            priority_rows,
+            key=lambda item: (-item[0], -item[1], item[2]),
+        )
+    ]
+
+    history_priority_queue.write_text(
+        "# History Priority Queue\\n\\n"
+        f"- archived_attempts_total: `{attempt_count}`\\n"
+        f"- ranked_class_count: `{len(sorted_priority_lines)}`\\n"
+        "\\n## Priority Queue\\n"
+        + (
+            "\\n".join(sorted_priority_lines[:10])
+            if sorted_priority_lines
             else "- none"
         )
         + "\\n",
@@ -707,6 +820,7 @@ def main() -> int:
     print(f"UPDATED {history_trends}")
     print(f"UPDATED {history_signals}")
     print(f"UPDATED {history_operator_pain}")
+    print(f"UPDATED {history_priority_queue}")
     print(f"UPDATED {failure_patterns}")
     print(f"UPDATED {missed_opportunities}")
     return 0
