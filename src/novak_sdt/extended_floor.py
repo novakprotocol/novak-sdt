@@ -15,6 +15,7 @@ def extended_required_floor_files() -> list[str]:
         "docs/history/HISTORY_INDEX.md",
         "docs/history/HISTORY_SUMMARY.md",
         "docs/history/HISTORY_TRENDS.md",
+        "docs/history/HISTORY_SIGNALS.md",
         "docs/history/FAILURE_PATTERNS.md",
         "docs/history/MISSED_OPPORTUNITIES.md",
         "docs/SDT_HISTORY_LANE.md",
@@ -60,6 +61,7 @@ nav:
       - History Index: history/HISTORY_INDEX.md
       - History Summary: history/HISTORY_SUMMARY.md
       - History Trends: history/HISTORY_TRENDS.md
+      - History Signals: history/HISTORY_SIGNALS.md
       - Failure Patterns: history/FAILURE_PATTERNS.md
       - Missed Opportunities: history/MISSED_OPPORTUNITIES.md
 """,
@@ -173,6 +175,10 @@ No history summary has been recorded yet.
         "docs/history/HISTORY_TRENDS.md": """# History Trends
 
 No history trends have been recorded yet.
+""",
+        "docs/history/HISTORY_SIGNALS.md": """# History Signals
+
+No history signals have been recorded yet.
 """,
 "docs/history/FAILURE_PATTERNS.md": """# Failure Patterns
 
@@ -346,6 +352,16 @@ def is_failure_line(line: str) -> bool:
     return any(token in lowered for token in ("fail", "error", "traceback", "mkdocs"))
 
 
+def compare_signal(latest: int, previous: int | None) -> str:
+    if previous is None:
+        return "no-prior"
+    if latest > previous:
+        return "worse"
+    if latest < previous:
+        return "better"
+    return "flat"
+
+
 def main() -> int:
     if len(sys.argv) != 2:
         print("usage: archive_history_log.py <logfile>", file=sys.stderr)
@@ -388,7 +404,7 @@ def main() -> int:
 
     attempts_path = history / "ATTEMPTS.ndjson"
     with attempts_path.open("a", encoding="utf-8") as handle:
-        handle.write(json.dumps(attempt_record, sort_keys=True) + "\\n")
+        handle.write(json.dumps(attempt_record, sort_keys=True) + "\n")
 
     records: list[dict] = []
     for raw_line in attempts_path.read_text(encoding="utf-8").splitlines():
@@ -400,7 +416,9 @@ def main() -> int:
             continue
 
     latest_record = records[-1] if records else attempt_record
+    previous_record = records[-2] if len(records) >= 2 else None
     attempt_count = len(records)
+
     total_failure_lines = sum(int(record.get("failure_line_count", 0)) for record in records)
     total_missed_lines = sum(int(record.get("missed_opportunity_count", 0)) for record in records)
 
@@ -441,109 +459,149 @@ def main() -> int:
     history_index = history / "HISTORY_INDEX.md"
     history_summary = history / "HISTORY_SUMMARY.md"
     history_trends = history / "HISTORY_TRENDS.md"
+    history_signals = history / "HISTORY_SIGNALS.md"
     failure_patterns = history / "FAILURE_PATTERNS.md"
     missed_opportunities = history / "MISSED_OPPORTUNITIES.md"
 
     history_index.write_text(
-        "# History Index\\n\\n"
-        f"- latest_archive: `{latest_record.get(\"archived_utc\", \"unknown\")}`\\n"
-        f"- source_name: `{latest_record.get(\"source_name\", \"unknown\")}`\\n"
-        f"- archived_copy: `{latest_record.get(\"archived_copy\", \"unknown\")}`\\n"
-        f"- line_count: `{latest_record.get(\"line_count\", 0)}`\\n",
+        "# History Index\n\n"
+        f"- latest_archive: `{latest_record.get('archived_utc', 'unknown')}`\n"
+        f"- source_name: `{latest_record.get('source_name', 'unknown')}`\n"
+        f"- archived_copy: `{latest_record.get('archived_copy', 'unknown')}`\n"
+        f"- line_count: `{latest_record.get('line_count', 0)}`\n",
         encoding="utf-8",
     )
 
     history_summary.write_text(
-        "# History Summary\\n\\n"
-        f"- archived_attempts_total: `{attempt_count}`\\n"
-        f"- latest_source_name: `{latest_record.get(\"source_name\", \"unknown\")}`\\n"
-        f"- total_failure_lines_across_all_imports: `{total_failure_lines}`\\n"
-        f"- total_missed_opportunity_lines_across_all_imports: `{total_missed_lines}`\\n"
-        f"- total_failure_lines_in_latest_import: `{latest_record.get(\"failure_line_count\", 0)}`\\n"
-        f"- total_missed_opportunity_lines_in_latest_import: `{latest_record.get(\"missed_opportunity_count\", 0)}`\\n"
-        "\\n## Failure Classes In Latest Import\\n"
+        "# History Summary\n\n"
+        f"- archived_attempts_total: `{attempt_count}`\n"
+        f"- latest_source_name: `{latest_record.get('source_name', 'unknown')}`\n"
+        f"- total_failure_lines_across_all_imports: `{total_failure_lines}`\n"
+        f"- total_missed_opportunity_lines_across_all_imports: `{total_missed_lines}`\n"
+        f"- total_failure_lines_in_latest_import: `{latest_record.get('failure_line_count', 0)}`\n"
+        f"- total_missed_opportunity_lines_in_latest_import: `{latest_record.get('missed_opportunity_count', 0)}`\n"
+        "\n## Failure Classes In Latest Import\n"
         + (
-            "\\n".join(
+            "\n".join(
                 f"- {key}: {value}"
-                for key, value in sorted((latest_record.get(\"failure_classes\", {}) or {}).items())
+                for key, value in sorted((latest_record.get('failure_classes', {}) or {}).items())
             )
-            if (latest_record.get(\"failure_classes\", {}) or {})
+            if (latest_record.get('failure_classes', {}) or {})
             else "- none"
         )
-        + "\\n\\n## Failure Classes Across All Imports\\n"
+        + "\n\n## Failure Classes Across All Imports\n"
         + (
-            "\\n".join(
+            "\n".join(
                 f"- {key}: {value}"
                 for key, value in sorted(aggregate_failure_classes.items())
             )
             if aggregate_failure_classes
             else "- none"
         )
-        + "\\n",
+        + "\n",
         encoding="utf-8",
     )
 
     history_trends.write_text(
-        "# History Trends\\n\\n"
-        f"- archived_attempts_total: `{attempt_count}`\\n"
-        f"- recurring_failure_class_count: `{len(recurring_classes)}`\\n"
-        f"- one_off_failure_class_count: `{len(one_off_classes)}`\\n"
-        "\\n## Recurring Failure Classes\\n"
+        "# History Trends\n\n"
+        f"- archived_attempts_total: `{attempt_count}`\n"
+        f"- recurring_failure_class_count: `{len(recurring_classes)}`\n"
+        f"- one_off_failure_class_count: `{len(one_off_classes)}`\n"
+        "\n## Recurring Failure Classes\n"
         + (
-            "\\n".join(
-                f"- {key}: imports_seen={int(value[\"imports_seen\"])}, total_lines={int(value[\"total_lines\"])}, first_seen={value[\"first_seen\"]}, latest_seen={value[\"latest_seen\"]}"
+            "\n".join(
+                f"- {key}: imports_seen={int(value['imports_seen'])}, total_lines={int(value['total_lines'])}, first_seen={value['first_seen']}, latest_seen={value['latest_seen']}"
                 for key, value in sorted(recurring_classes.items())
             )
             if recurring_classes
             else "- none"
         )
-        + "\\n\\n## One-Off Failure Classes\\n"
+        + "\n\n## One-Off Failure Classes\n"
         + (
-            "\\n".join(
-                f"- {key}: imports_seen={int(value[\"imports_seen\"])}, total_lines={int(value[\"total_lines\"])}, first_seen={value[\"first_seen\"]}, latest_seen={value[\"latest_seen\"]}"
+            "\n".join(
+                f"- {key}: imports_seen={int(value['imports_seen'])}, total_lines={int(value['total_lines'])}, first_seen={value['first_seen']}, latest_seen={value['latest_seen']}"
                 for key, value in sorted(one_off_classes.items())
             )
             if one_off_classes
             else "- none"
         )
-        + "\\n\\n## Latest 5 Imports\\n"
+        + "\n\n## Latest 5 Imports\n"
         + (
-            "\\n".join(
-                f"- {record.get(\"archived_utc\", \"unknown\")} | {record.get(\"source_name\", \"unknown\")} | failure_lines={record.get(\"failure_line_count\", 0)} | missed_opportunities={record.get(\"missed_opportunity_count\", 0)}"
+            "\n".join(
+                f"- {record.get('archived_utc', 'unknown')} | {record.get('source_name', 'unknown')} | failure_lines={record.get('failure_line_count', 0)} | missed_opportunities={record.get('missed_opportunity_count', 0)}"
                 for record in records[-5:]
             )
             if records
             else "- none"
         )
-        + "\\n",
+        + "\n",
+        encoding="utf-8",
+    )
+
+    latest_classes = latest_record.get("failure_classes", {}) or {}
+    previous_classes = previous_record.get("failure_classes", {}) or {} if previous_record else {}
+    latest_failure_lines_count = int(latest_record.get("failure_line_count", 0))
+    previous_failure_lines_count = int(previous_record.get("failure_line_count", 0)) if previous_record else None
+    latest_missed_count = int(latest_record.get("missed_opportunity_count", 0))
+    previous_missed_count = int(previous_record.get("missed_opportunity_count", 0)) if previous_record else None
+
+    class_keys = sorted(set(latest_classes) | set(previous_classes))
+    class_signal_lines: list[str] = []
+    for key in class_keys:
+        latest_value = int(latest_classes.get(key, 0) or 0)
+        previous_value = int(previous_classes.get(key, 0) or 0) if previous_record else None
+        delta_value = latest_value - previous_value if previous_value is not None else None
+        signal_value = compare_signal(latest_value, previous_value)
+        class_signal_lines.append(
+            f"- {key}: latest={latest_value}, previous={previous_value if previous_value is not None else 'none'}, delta={delta_value if delta_value is not None else 'n/a'}, signal={signal_value}"
+        )
+
+    history_signals.write_text(
+        "# History Signals\n\n"
+        f"- archived_attempts_total: `{attempt_count}`\n"
+        f"- latest_source_name: `{latest_record.get('source_name', 'unknown')}`\n"
+        f"- previous_source_name: `{previous_record.get('source_name', 'none') if previous_record else 'none'}`\n"
+        f"- failure_line_signal_vs_previous: `{compare_signal(latest_failure_lines_count, previous_failure_lines_count)}`\n"
+        f"- missed_opportunity_signal_vs_previous: `{compare_signal(latest_missed_count, previous_missed_count)}`\n"
+        f"- latest_failure_lines: `{latest_failure_lines_count}`\n"
+        f"- previous_failure_lines: `{previous_failure_lines_count if previous_failure_lines_count is not None else 'none'}`\n"
+        f"- latest_missed_opportunities: `{latest_missed_count}`\n"
+        f"- previous_missed_opportunities: `{previous_missed_count if previous_missed_count is not None else 'none'}`\n"
+        "\n## Failure Class Signals vs Previous Import\n"
+        + (
+            "\n".join(class_signal_lines)
+            if class_signal_lines
+            else "- none"
+        )
+        + "\n",
         encoding="utf-8",
     )
 
     failure_patterns.write_text(
-        "# Failure Patterns\\n\\n"
+        "# Failure Patterns\n\n"
         + (
-            "\\n".join(
-                f"- {re.sub(r'`', "\'", line[:200])}"
+            "\n".join(
+                f"- {re.sub(r'`', "'", line[:200])}"
                 for line in failure_lines[:25]
             )
             if failure_lines
             else "- none"
         )
-        + "\\n",
+        + "\n",
         encoding="utf-8",
     )
 
     missed_opportunities.write_text(
-        "# Missed Opportunities\\n\\n"
+        "# Missed Opportunities\n\n"
         + (
-            "\\n".join(
-                f"- {re.sub(r'`', "\'", line[:200])}"
+            "\n".join(
+                f"- {re.sub(r'`', "'", line[:200])}"
                 for line in missed_lines[:25]
             )
             if missed_lines
             else "- none"
         )
-        + "\\n",
+        + "\n",
         encoding="utf-8",
     )
 
@@ -552,6 +610,7 @@ def main() -> int:
     print(f"UPDATED {history_index}")
     print(f"UPDATED {history_summary}")
     print(f"UPDATED {history_trends}")
+    print(f"UPDATED {history_signals}")
     print(f"UPDATED {failure_patterns}")
     print(f"UPDATED {missed_opportunities}")
     return 0
