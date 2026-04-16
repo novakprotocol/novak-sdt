@@ -335,6 +335,11 @@ def classify_failure(line: str) -> str:
     return "other"
 
 
+def is_failure_line(line: str) -> bool:
+    lowered = line.lower()
+    return any(token in lowered for token in ("fail", "error", "traceback", "mkdocs"))
+
+
 def main() -> int:
     if len(sys.argv) != 2:
         print("usage: archive_history_log.py <logfile>", file=sys.stderr)
@@ -358,10 +363,7 @@ def main() -> int:
     text = source.read_text(encoding="utf-8", errors="replace")
     lines = text.splitlines()
 
-    failure_lines = [
-        line for line in lines
-        if "FAIL" in line or "Error" in line or "ERROR" in line
-    ]
+    failure_lines = [line for line in lines if is_failure_line(line)]
     missed_lines = [
         line for line in lines
         if "Permission denied" in line or "command not found" in line
@@ -382,9 +384,28 @@ def main() -> int:
     with attempts_path.open("a", encoding="utf-8") as handle:
         handle.write(json.dumps(attempt_record, sort_keys=True) + "\\n")
 
-    attempt_count = sum(
-        1 for line in attempts_path.read_text(encoding="utf-8").splitlines() if line.strip()
-    )
+    records: list[dict] = []
+    for raw_line in attempts_path.read_text(encoding="utf-8").splitlines():
+        if not raw_line.strip():
+            continue
+        try:
+            records.append(json.loads(raw_line))
+        except json.JSONDecodeError:
+            continue
+
+    latest_record = records[-1] if records else attempt_record
+    attempt_count = len(records)
+    total_failure_lines = sum(int(record.get("failure_line_count", 0)) for record in records)
+    total_missed_lines = sum(int(record.get("missed_opportunity_count", 0)) for record in records)
+
+    aggregate_failure_classes = Counter()
+    for record in records:
+        classes = record.get("failure_classes", {}) or {}
+        for key, value in classes.items():
+            try:
+                aggregate_failure_classes[str(key)] += int(value)
+            except (TypeError, ValueError):
+                continue
 
     history_index = history / "HISTORY_INDEX.md"
     history_summary = history / "HISTORY_SUMMARY.md"
@@ -393,26 +414,37 @@ def main() -> int:
 
     history_index.write_text(
         "# History Index\\n\\n"
-        f"- latest_archive: `{attempt_record['archived_utc']}`\\n"
-        f"- source_name: `{source.name}`\\n"
-        f"- archived_copy: `{attempt_record['archived_copy']}`\\n"
-        f"- line_count: `{len(lines)}`\\n",
+        f"- latest_archive: `{latest_record.get(\"archived_utc\", \"unknown\")}`\\n"
+        f"- source_name: `{latest_record.get(\"source_name\", \"unknown\")}`\\n"
+        f"- archived_copy: `{latest_record.get(\"archived_copy\", \"unknown\")}`\\n"
+        f"- line_count: `{latest_record.get(\"line_count\", 0)}`\\n",
         encoding="utf-8",
     )
 
     history_summary.write_text(
         "# History Summary\\n\\n"
         f"- archived_attempts_total: `{attempt_count}`\\n"
-        f"- latest_source_name: `{source.name}`\\n"
-        f"- total_failure_lines_in_latest_import: `{len(failure_lines)}`\\n"
-        f"- total_missed_opportunity_lines_in_latest_import: `{len(missed_lines)}`\\n"
-        "\\n## Failure Classes\\n"
+        f"- latest_source_name: `{latest_record.get(\"source_name\", \"unknown\")}`\\n"
+        f"- total_failure_lines_across_all_imports: `{total_failure_lines}`\\n"
+        f"- total_missed_opportunity_lines_across_all_imports: `{total_missed_lines}`\\n"
+        f"- total_failure_lines_in_latest_import: `{latest_record.get(\"failure_line_count\", 0)}`\\n"
+        f"- total_missed_opportunity_lines_in_latest_import: `{latest_record.get(\"missed_opportunity_count\", 0)}`\\n"
+        "\\n## Failure Classes In Latest Import\\n"
         + (
             "\\n".join(
                 f"- {key}: {value}"
-                for key, value in sorted(failure_classes.items())
+                for key, value in sorted((latest_record.get(\"failure_classes\", {}) or {}).items())
             )
-            if failure_classes
+            if (latest_record.get(\"failure_classes\", {}) or {})
+            else "- none"
+        )
+        + "\\n\\n## Failure Classes Across All Imports\\n"
+        + (
+            "\\n".join(
+                f"- {key}: {value}"
+                for key, value in sorted(aggregate_failure_classes.items())
+            )
+            if aggregate_failure_classes
             else "- none"
         )
         + "\\n",
