@@ -1,0 +1,29 @@
+{
+  "schema_version": 1,
+  "label": "inventory-smoke-20260416-103506",
+  "generated_utc": "2026-04-16 10:35:07 UTC",
+  "repo_path": "/root/novak-sdt",
+  "host": {
+    "hostname": "novak-ansible-control",
+    "fqdn": "novak-ansible-control",
+    "platform": "Linux-6.8.0-107-generic-x86_64-with-glibc2.39",
+    "python": "3.12.3",
+    "user": "root"
+  },
+  "files": {
+    "hostnamectl.txt": "docs/status/inventory/inventory-smoke-20260416-103506/hostnamectl.txt",
+    "os-release.txt": "docs/status/inventory/inventory-smoke-20260416-103506/os-release.txt",
+    "kernel.txt": "docs/status/inventory/inventory-smoke-20260416-103506/kernel.txt",
+    "ip-addresses.txt": "docs/status/inventory/inventory-smoke-20260416-103506/ip-addresses.txt",
+    "routes.txt": "docs/status/inventory/inventory-smoke-20260416-103506/routes.txt",
+    "resolv.conf.txt": "docs/status/inventory/inventory-smoke-20260416-103506/resolv.conf.txt",
+    "filesystems.txt": "docs/status/inventory/inventory-smoke-20260416-103506/filesystems.txt",
+    "memory.txt": "docs/status/inventory/inventory-smoke-20260416-103506/memory.txt",
+    "services-enabled.txt": "docs/status/inventory/inventory-smoke-20260416-103506/services-enabled.txt",
+    "services-running.txt": "docs/status/inventory/inventory-smoke-20260416-103506/services-running.txt",
+    "processes.txt": "docs/status/inventory/inventory-smoke-20260416-103506/processes.txt",
+    "ports.txt": "docs/status/inventory/inventory-smoke-20260416-103506/ports.txt",
+    "packages.txt": "docs/status/inventory/inventory-smoke-20260416-103506/packages.txt",
+    "updates.txt": "docs/status/inventory/inventory-smoke-20260416-103506/updates.txt"
+  }
+}

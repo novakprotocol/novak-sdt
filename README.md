@@ -188,3 +188,12 @@ In plain terms:
 - it helps messy repos become easier to understand
 - it helps teams stop losing project truth in chats, heads, and scattered files
 
+## Advanced ops
+
+For serious server or infra repos, SDT now also supports:
+
+- serious-mode execution receipts via `bash bin/sdt-serious-run.sh ...`
+- runtime inventory snapshots via `bash bin/sdt-inventory-snapshot.sh <repo_path> <label>`
+
+Use inventory mode for before/after server truth.
+

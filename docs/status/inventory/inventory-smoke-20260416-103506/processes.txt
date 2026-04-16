@@ -1,0 +1,193 @@
+    PID    PPID USER     %CPU %MEM COMMAND         COMMAND
+ 769818       1 root      4.6  0.0 systemd-hostnam /usr/lib/systemd/systemd-hostnamed
+ 769815  769814 root      3.2  0.1 python3         python3 tools/sdt_inventory_snapshot.py --repo-path /root/novak-sdt --label inventory-smoke-20260416-103506
+ 769774  769773 root      0.4  0.0 bash            -bash
+  37279       1 root      0.1  0.5 uvicorn         /opt/novak-control-api/.venv/bin/python3 /opt/novak-control-api/.venv/bin/uvicorn app:APP --host 0.0.0.0 --port 8060
+   1428    1356 root      0.1  0.3 python          python services/exporter/app.py
+   1437    1357 root      0.1  0.3 python          python services/reconciler/reconcile.py
+      1       0 root      0.1  0.1 systemd         /usr/lib/systemd/systemd --system --deserialize=95
+  37580       1 root      0.0  0.0 qemu-ga         /usr/sbin/qemu-ga
+    816       1 root      0.0  0.6 containerd      /usr/bin/containerd
+  60767       1 root      0.0  0.0 ssh             ssh: /root/.ansible/cp/d11c5be585 [mux]
+  60764       1 root      0.0  0.1 ssh             ssh -l root -W [192.168.1.174]:22 192.168.1.54
+     17       2 root      0.0  0.0 rcu_preempt     [rcu_preempt]
+  37257       1 root      0.0  0.5 systemd-journal /usr/lib/systemd/systemd-journald
+    963       1 root      0.0  1.1 dockerd         /usr/bin/dockerd -H fd:// --containerd=/run/containerd/containerd.sock
+    763       1 message+  0.0  0.0 dbus-daemon     @dbus-daemon --system --address=systemd: --nofork --nopidfile --systemd-activation --syslog-only
+     30       2 root      0.0  0.0 ksoftirqd/2     [ksoftirqd/2]
+     36       2 root      0.0  0.0 ksoftirqd/3     [ksoftirqd/3]
+     24       2 root      0.0  0.0 ksoftirqd/1     [ksoftirqd/1]
+     16       2 root      0.0  0.0 ksoftirqd/0     [ksoftirqd/0]
+  37236       1 root      0.0  0.2 python3         /usr/bin/python3 /root/niat-v0.1/scripts/iat_review_server.py --host 0.0.0.0 --port 8787
+ 766938  766832 novakops  0.0  0.0 sshd            sshd: novakops@pts/1
+ 760074       2 root      0.0  0.0 kworker/u8:1-ev [kworker/u8:1-events_unbound]
+    864       1 syslog    0.0  0.0 rsyslogd        /usr/sbin/rsyslogd -n -iNONE
+    782       1 root      0.0  0.1 systemd-logind  /usr/lib/systemd/systemd-logind
+ 763515       2 root      0.0  0.0 kworker/u8:4-fl [kworker/u8:4-flush-8:0]
+    409       1 root      0.0  0.3 multipathd      /sbin/multipathd -d -s
+ 768908       2 root      0.0  0.0 kworker/2:0-eve [kworker/2:0-events]
+  50010       1 root      0.0  0.1 ssh             ssh -l root -W [192.168.1.228]:22 192.168.1.54
+  50014       1 root      0.0  0.1 ssh             ssh -l root -W [192.168.1.109]:22 192.168.1.54
+  50024       1 root      0.0  0.0 ssh             ssh: /root/.ansible/cp/8237f24261 [mux]
+  50028       1 root      0.0  0.0 ssh             ssh: /root/.ansible/cp/08084005ea [mux]
+ 765603       2 root      0.0  0.0 kworker/1:0-cgr [kworker/1:0-cgroup_free]
+   1358       1 root      0.0  0.1 containerd-shim /usr/bin/containerd-shim-runc-v2 -namespace moby -id 2b0ff76450adf5d8b9dc71274cd07b15083abb96fae281e4a91295b4850865ae -address /run/containerd/containerd.sock
+ 769019       2 root      0.0  0.0 kworker/0:3-eve [kworker/0:3-events]
+ 765938       2 root      0.0  0.0 kworker/3:0-eve [kworker/3:0-events]
+ 766661       2 root      0.0  0.0 kworker/2:2-cgr [kworker/2:2-cgroup_free]
+   1357       1 root      0.0  0.1 containerd-shim /usr/bin/containerd-shim-runc-v2 -namespace moby -id b891278a71b3efdc8fecbc402a53b234860ba8c082aa28157bccf22ac3bf771c -address /run/containerd/containerd.sock
+ 767856       2 root      0.0  0.0 kworker/2:3-cgr [kworker/2:3-cgroup_free]
+   1356       1 root      0.0  0.1 containerd-shim /usr/bin/containerd-shim-runc-v2 -namespace moby -id 5f354984592aaa2c7797831d596ef14350aab6242caf72dfb78b6b8273260681 -address /run/containerd/containerd.sock
+ 718703  718647 novakops  0.0  0.0 sshd            sshd: novakops@pts/0
+ 761946       2 root      0.0  0.0 kworker/u8:3-fl [kworker/u8:3-flush-8:0]
+ 764856  764855 root      0.0  0.0 bash            -bash
+  50011       1 root      0.0  0.1 ssh             ssh -l root -W [192.168.1.107]:22 192.168.1.54
+     47       2 root      0.0  0.0 kcompactd0      [kcompactd0]
+ 768820       2 root      0.0  0.0 kworker/1:3-eve [kworker/1:3-events]
+ 761801       2 root      0.0  0.0 kworker/0:2-cgr [kworker/0:2-cgroup_free]
+  50013       1 root      0.0  0.1 ssh             ssh -l root -W [192.168.1.220]:22 192.168.1.54
+  50019       1 root      0.0  0.0 ssh             ssh: /root/.ansible/cp/48191edcdf [mux]
+ 764161       2 root      0.0  0.0 kworker/1:1-cgr [kworker/1:1-cgroup_free]
+  50033       1 root      0.0  0.0 ssh             ssh: /root/.ansible/cp/42f16559b1 [mux]
+ 760944       2 root      0.0  0.0 kworker/3:2-cgr [kworker/3:2-cgroup_free]
+ 768493       2 root      0.0  0.0 kworker/3:1-cgr [kworker/3:1-cgroup_free]
+ 767032  767031 root      0.0  0.0 bash            -bash
+ 766987       2 root      0.0  0.0 kworker/0:0-eve [kworker/0:0-events]
+ 766952  766951 root      0.0  0.0 bash            -bash
+ 766940  766938 novakops  0.0  0.0 bash            -bash
+ 766832   37255 root      0.0  0.1 sshd            sshd: novakops [priv]
+ 494246       1 polkitd   0.0  0.1 polkitd         /usr/lib/polkit-1/polkitd --no-debug
+ 764853  718704 root      0.0  0.0 sudo            sudo -i
+   1427    1358 novakops  0.0  0.3 opa             /opa run --server --addr=0.0.0.0:8181 /policies
+ 768017       2 root      0.0  0.0 kworker/0:1-cgr [kworker/0:1-cgroup_free]
+ 767836       2 root      0.0  0.0 kworker/1:2-eve [kworker/1:2-events]
+    278       2 root      0.0  0.0 jbd2/sda1-8     [jbd2/sda1-8]
+     23       2 root      0.0  0.0 migration/1     [migration/1]
+     29       2 root      0.0  0.0 migration/2     [migration/2]
+     35       2 root      0.0  0.0 migration/3     [migration/3]
+     79       2 root      0.0  0.0 kworker/3:1H-kb [kworker/3:1H-kblockd]
+    131       2 root      0.0  0.0 kworker/1:1H-kb [kworker/1:1H-kblockd]
+     64       2 root      0.0  0.0 kworker/0:1H-kb [kworker/0:1H-kblockd]
+     18       2 root      0.0  0.0 migration/0     [migration/0]
+    128       2 root      0.0  0.0 kworker/2:1H-kb [kworker/2:1H-kblockd]
+    867       1 _chrony   0.0  0.0 chronyd         /usr/sbin/chronyd -F 1
+ 718704  718703 novakops  0.0  0.0 bash            -bash
+    797       1 root      0.0  0.0 cron            /usr/sbin/cron -f -P
+  37251       1 systemd+  0.0  0.1 systemd-resolve /usr/lib/systemd/systemd-resolved
+  37276       1 systemd+  0.0  0.1 systemd-network /usr/lib/systemd/systemd-networkd
+   1550     963 root      0.0  0.0 docker-proxy    /usr/bin/docker-proxy -proto tcp -host-ip 0.0.0.0 -host-port 9101 -container-ip 172.18.0.3 -container-port 9101 -use-listen-fd
+   1529     963 root      0.0  0.0 docker-proxy    /usr/bin/docker-proxy -proto tcp -host-ip 0.0.0.0 -host-port 9100 -container-ip 172.18.0.2 -container-port 9100 -use-listen-fd
+  37261       1 root      0.0  0.0 systemd-udevd   /usr/lib/systemd/systemd-udevd
+ 494825       1 root      0.0  0.1 udisksd         /usr/libexec/udisks2/udisksd
+    683       1 _rpc      0.0  0.0 rpcbind         /sbin/rpcbind -f -w
+   1503     963 root      0.0  0.0 docker-proxy    /usr/bin/docker-proxy -proto tcp -host-ip 0.0.0.0 -host-port 8181 -container-ip 172.20.0.2 -container-port 8181 -use-listen-fd
+     42       2 root      0.0  0.0 khungtaskd      [khungtaskd]
+ 494261       1 root      0.0  0.1 ModemManager    /usr/sbin/ModemManager
+      2       0 root      0.0  0.0 kthreadd        [kthreadd]
+ 718647   37255 root      0.0  0.1 sshd            sshd: novakops [priv]
+  49383       1 novakops  0.0  0.1 systemd         /usr/lib/systemd/systemd --user
+    769       1 root      0.0  0.2 networkd-dispat /usr/bin/python3 /usr/bin/networkd-dispatcher --run-startup-triggers
+    828       1 root      0.0  0.2 unattended-upgr /usr/bin/python3 /usr/share/unattended-upgrades/unattended-upgrade-shutdown --wait-for-signal
+  37255       1 root      0.0  0.1 sshd            sshd: /usr/sbin/sshd -D [listener] 0 of 10-100 startups
+      3       2 root      0.0  0.0 pool_workqueue_ [pool_workqueue_release]
+      4       2 root      0.0  0.0 kworker/R-rcu_g [kworker/R-rcu_g]
+      5       2 root      0.0  0.0 kworker/R-rcu_p [kworker/R-rcu_p]
+      6       2 root      0.0  0.0 kworker/R-slub_ [kworker/R-slub_]
+      7       2 root      0.0  0.0 kworker/R-netns [kworker/R-netns]
+      9       2 root      0.0  0.0 kworker/0:0H-ev [kworker/0:0H-events_highpri]
+     12       2 root      0.0  0.0 kworker/R-mm_pe [kworker/R-mm_pe]
+     13       2 root      0.0  0.0 rcu_tasks_kthre [rcu_tasks_kthread]
+     14       2 root      0.0  0.0 rcu_tasks_rude_ [rcu_tasks_rude_kthread]
+     15       2 root      0.0  0.0 rcu_tasks_trace [rcu_tasks_trace_kthread]
+     19       2 root      0.0  0.0 idle_inject/0   [idle_inject/0]
+     20       2 root      0.0  0.0 cpuhp/0         [cpuhp/0]
+     21       2 root      0.0  0.0 cpuhp/1         [cpuhp/1]
+     22       2 root      0.0  0.0 idle_inject/1   [idle_inject/1]
+     26       2 root      0.0  0.0 kworker/1:0H-ev [kworker/1:0H-events_highpri]
+     27       2 root      0.0  0.0 cpuhp/2         [cpuhp/2]
+     28       2 root      0.0  0.0 idle_inject/2   [idle_inject/2]
+     32       2 root      0.0  0.0 kworker/2:0H-ev [kworker/2:0H-events_highpri]
+     33       2 root      0.0  0.0 cpuhp/3         [cpuhp/3]
+     34       2 root      0.0  0.0 idle_inject/3   [idle_inject/3]
+     38       2 root      0.0  0.0 kworker/3:0H-ev [kworker/3:0H-events_highpri]
+     39       2 root      0.0  0.0 kdevtmpfs       [kdevtmpfs]
+     40       2 root      0.0  0.0 kworker/R-inet_ [kworker/R-inet_]
+     41       2 root      0.0  0.0 kauditd         [kauditd]
+     43       2 root      0.0  0.0 oom_reaper      [oom_reaper]
+     45       2 root      0.0  0.0 kworker/R-write [kworker/R-write]
+     48       2 root      0.0  0.0 ksmd            [ksmd]
+     50       2 root      0.0  0.0 khugepaged      [khugepaged]
+     51       2 root      0.0  0.0 kworker/R-kinte [kworker/R-kinte]
+     52       2 root      0.0  0.0 kworker/R-kbloc [kworker/R-kbloc]
+     53       2 root      0.0  0.0 kworker/R-blkcg [kworker/R-blkcg]
+     54       2 root      0.0  0.0 irq/9-acpi      [irq/9-acpi]
+     56       2 root      0.0  0.0 kworker/R-tpm_d [kworker/R-tpm_d]
+     57       2 root      0.0  0.0 kworker/R-ata_s [kworker/R-ata_s]
+     58       2 root      0.0  0.0 kworker/R-md    [kworker/R-md]
+     59       2 root      0.0  0.0 kworker/R-md_bi [kworker/R-md_bi]
+     60       2 root      0.0  0.0 kworker/R-edac- [kworker/R-edac-]
+     61       2 root      0.0  0.0 kworker/R-devfr [kworker/R-devfr]
+     62       2 root      0.0  0.0 watchdogd       [watchdogd]
+     63       2 root      0.0  0.0 kworker/R-quota [kworker/R-quota]
+     65       2 root      0.0  0.0 kswapd0         [kswapd0]
+     66       2 root      0.0  0.0 ecryptfs-kthrea [ecryptfs-kthread]
+     67       2 root      0.0  0.0 kworker/R-kthro [kworker/R-kthro]
+     68       2 root      0.0  0.0 irq/24-aerdrv   [irq/24-aerdrv]
+     69       2 root      0.0  0.0 irq/25-aerdrv   [irq/25-aerdrv]
+     70       2 root      0.0  0.0 irq/26-aerdrv   [irq/26-aerdrv]
+     71       2 root      0.0  0.0 irq/27-aerdrv   [irq/27-aerdrv]
+     72       2 root      0.0  0.0 kworker/R-acpi_ [kworker/R-acpi_]
+     73       2 root      0.0  0.0 scsi_eh_0       [scsi_eh_0]
+     74       2 root      0.0  0.0 kworker/R-scsi_ [kworker/R-scsi_]
+     78       2 root      0.0  0.0 kworker/R-mld   [kworker/R-mld]
+     80       2 root      0.0  0.0 kworker/R-ipv6_ [kworker/R-ipv6_]
+     87       2 root      0.0  0.0 kworker/R-kstrp [kworker/R-kstrp]
+     89       2 root      0.0  0.0 kworker/u9:0    [kworker/u9:0]
+     94       2 root      0.0  0.0 kworker/R-crypt [kworker/R-crypt]
+    104       2 root      0.0  0.0 kworker/R-charg [kworker/R-charg]
+    180       2 root      0.0  0.0 scsi_eh_1       [scsi_eh_1]
+    181       2 root      0.0  0.0 kworker/R-scsi_ [kworker/R-scsi_]
+    182       2 root      0.0  0.0 scsi_eh_2       [scsi_eh_2]
+    183       2 root      0.0  0.0 kworker/R-scsi_ [kworker/R-scsi_]
+    184       2 root      0.0  0.0 scsi_eh_3       [scsi_eh_3]
+    185       2 root      0.0  0.0 kworker/R-scsi_ [kworker/R-scsi_]
+    186       2 root      0.0  0.0 scsi_eh_4       [scsi_eh_4]
+    187       2 root      0.0  0.0 kworker/R-scsi_ [kworker/R-scsi_]
+    188       2 root      0.0  0.0 scsi_eh_5       [scsi_eh_5]
+    189       2 root      0.0  0.0 kworker/R-scsi_ [kworker/R-scsi_]
+    190       2 root      0.0  0.0 scsi_eh_6       [scsi_eh_6]
+    191       2 root      0.0  0.0 kworker/R-scsi_ [kworker/R-scsi_]
+    233       2 root      0.0  0.0 kworker/R-raid5 [kworker/R-raid5]
+    279       2 root      0.0  0.0 kworker/R-ext4- [kworker/R-ext4-]
+    376       2 root      0.0  0.0 kworker/R-nvme- [kworker/R-nvme-]
+    377       2 root      0.0  0.0 kworker/R-nvme- [kworker/R-nvme-]
+    378       2 root      0.0  0.0 kworker/R-nvme- [kworker/R-nvme-]
+    379       2 root      0.0  0.0 kworker/R-nvme- [kworker/R-nvme-]
+    381       2 root      0.0  0.0 kworker/R-kmpat [kworker/R-kmpat]
+    383       2 root      0.0  0.0 kworker/R-kmpat [kworker/R-kmpat]
+    539       2 root      0.0  0.0 jbd2/sda16-8    [jbd2/sda16-8]
+    540       2 root      0.0  0.0 kworker/R-ext4- [kworker/R-ext4-]
+    697       2 root      0.0  0.0 kworker/R-rpcio [kworker/R-rpcio]
+    698       2 root      0.0  0.0 kworker/R-xprti [kworker/R-xprti]
+    819       1 root      0.0  0.0 agetty          /sbin/agetty -o -p -- \u --keep-baud 115200,57600,38400,9600 - vt220
+    852       1 root      0.0  0.0 agetty          /sbin/agetty -o -p -- \u --noclear - linux
+    868     867 _chrony   0.0  0.0 chronyd         /usr/sbin/chronyd -F 1
+   4967       2 root      0.0  0.0 kworker/R-tls-s [kworker/R-tls-s]
+  37277       2 root      0.0  0.0 psimon          [psimon]
+  49384   49383 novakops  0.0  0.0 (sd-pam)        (sd-pam)
+ 494232       2 root      0.0  0.0 psimon          [psimon]
+ 764855  764853 root      0.0  0.0 sudo            sudo -i
+ 765662       2 root      0.0  0.0 kworker/2:1-cgr [kworker/2:1-cgroup_free]
+ 766950  766940 root      0.0  0.0 sudo            sudo -i
+ 766951  766950 root      0.0  0.0 sudo            sudo -i
+ 767030  766952 root      0.0  0.0 sudo            sudo -i
+ 767031  767030 root      0.0  0.0 sudo            sudo -i
+ 768870       2 root      0.0  0.0 kworker/1:4     [kworker/1:4]
+ 769591       2 root      0.0  0.0 kworker/3:3-eve [kworker/3:3-events]
+ 769767       2 root      0.0  0.0 kworker/u8:0-ex [kworker/u8:0-ext4-rsv-conversion]
+ 769771  767032 root      0.0  0.0 sudo            sudo -i
+ 769773  769771 root      0.0  0.0 sudo            sudo -i
+ 769814  769774 root      0.0  0.0 bash            bash bin/sdt-inventory-snapshot.sh /root/novak-sdt inventory-smoke-20260416-103506
+ 769837  769815 root      0.0  0.0 bash            /bin/bash -c ps -eo pid,ppid,user,%cpu,%mem,comm,args --sort=-%cpu | head -n 200 || true
+ 769838  769837 root      0.0  0.0 ps              ps -eo pid,ppid,user,%cpu,%mem,comm,args --sort=-%cpu
+ 769839  769837 root      0.0  0.0 head            head -n 200

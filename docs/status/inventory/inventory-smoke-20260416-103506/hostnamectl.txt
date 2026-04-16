@@ -1,0 +1,14 @@
+ Static hostname: novak-ansible-control
+       Icon name: computer-vm
+         Chassis: vm 🖴
+      Machine ID: 5054b2cf641b41ba80bd00e454cce334
+         Boot ID: 888a638f6fef406e9b8621a00f31add6
+  Virtualization: kvm
+Operating System: Ubuntu 24.04.4 LTS
+          Kernel: Linux 6.8.0-107-generic
+    Architecture: x86-64
+ Hardware Vendor: QEMU
+  Hardware Model: Standard PC _Q35 + ICH9, 2009_
+Firmware Version: rel-1.17.0-0-gb52ca86e094d-prebuilt.qemu.org
+   Firmware Date: Tue 2014-04-01
+    Firmware Age: 12y 2w 1d

@@ -1,0 +1,9 @@
+lo               UNKNOWN        127.0.0.1/8 
+eth0             UP             192.168.2.22/24 fe80::be24:11ff:fe1d:52f9/64 
+br-c81dfd1fbee4  UP             172.18.0.1/16 
+docker0          DOWN           172.17.0.1/16 
+br-0812c93075e1  UP             172.20.0.1/16 
+br-7f282154e4f9  DOWN           172.19.0.1/16 
+veth41f0bcc@if2  UP             
+veth118dfe0@if2  UP             
+veth9c634fa@if2  UP
