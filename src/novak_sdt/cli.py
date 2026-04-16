@@ -6,6 +6,7 @@ import subprocess
 import sys
 import time
 from pathlib import Path
+from novak_sdt.extended_floor import extended_required_floor_files, mkdocs_templates
 
 START = time.time()
 
@@ -277,6 +278,7 @@ def required_floor_files() -> list[str]:
         "docs/product/WHAT_THIS_PRODUCT_IS.md",
         "docs/product/CURRENT_VS_PLANNED.md",
         "docs/product/PRODUCT_SYSTEM_BOUNDARY.md",
+        *extended_required_floor_files(),
     ]
 
 
@@ -304,6 +306,7 @@ def apply_floor(root: Path, context: dict[str, str], overwrite: bool, include_re
     templates.update(core_templates())
     templates.update(operator_templates())
     templates.update(product_truth_templates())
+    templates.update(mkdocs_templates())
 
     if include_report:
         templates["docs/status/SDT_BASELINE_GAP_REPORT.md"] = build_gap_report(
