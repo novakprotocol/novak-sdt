@@ -14,6 +14,7 @@ def extended_required_floor_files() -> list[str]:
         "docs/history/ATTEMPTS.ndjson",
         "docs/history/HISTORY_INDEX.md",
         "docs/history/HISTORY_SUMMARY.md",
+        "docs/history/HISTORY_TRENDS.md",
         "docs/history/FAILURE_PATTERNS.md",
         "docs/history/MISSED_OPPORTUNITIES.md",
         "docs/SDT_HISTORY_LANE.md",
@@ -58,6 +59,7 @@ nav:
   - History:
       - History Index: history/HISTORY_INDEX.md
       - History Summary: history/HISTORY_SUMMARY.md
+      - History Trends: history/HISTORY_TRENDS.md
       - Failure Patterns: history/FAILURE_PATTERNS.md
       - Missed Opportunities: history/MISSED_OPPORTUNITIES.md
 """,
@@ -167,6 +169,10 @@ No attempt history has been recorded yet.
         "docs/history/HISTORY_SUMMARY.md": """# History Summary
 
 No history summary has been recorded yet.
+""",
+        "docs/history/HISTORY_TRENDS.md": """# History Trends
+
+No history trends have been recorded yet.
 """,
 "docs/history/FAILURE_PATTERNS.md": """# Failure Patterns
 
@@ -311,7 +317,7 @@ import json
 import re
 import shutil
 import sys
-from collections import Counter
+from collections import Counter, defaultdict
 from datetime import UTC, datetime
 from pathlib import Path
 
@@ -399,16 +405,42 @@ def main() -> int:
     total_missed_lines = sum(int(record.get("missed_opportunity_count", 0)) for record in records)
 
     aggregate_failure_classes = Counter()
+    trend_map: dict[str, dict[str, object]] = defaultdict(lambda: {
+        "imports_seen": 0,
+        "total_lines": 0,
+        "first_seen": None,
+        "latest_seen": None,
+    })
+
     for record in records:
         classes = record.get("failure_classes", {}) or {}
+        archived_utc = str(record.get("archived_utc", "unknown"))
         for key, value in classes.items():
             try:
-                aggregate_failure_classes[str(key)] += int(value)
+                count = int(value)
             except (TypeError, ValueError):
                 continue
+            cls = str(key)
+            aggregate_failure_classes[cls] += count
+            trend = trend_map[cls]
+            trend["imports_seen"] = int(trend["imports_seen"]) + 1
+            trend["total_lines"] = int(trend["total_lines"]) + count
+            if trend["first_seen"] is None:
+                trend["first_seen"] = archived_utc
+            trend["latest_seen"] = archived_utc
+
+    recurring_classes = {
+        key: value for key, value in trend_map.items()
+        if int(value["imports_seen"]) >= 2
+    }
+    one_off_classes = {
+        key: value for key, value in trend_map.items()
+        if int(value["imports_seen"]) == 1
+    }
 
     history_index = history / "HISTORY_INDEX.md"
     history_summary = history / "HISTORY_SUMMARY.md"
+    history_trends = history / "HISTORY_TRENDS.md"
     failure_patterns = history / "FAILURE_PATTERNS.md"
     missed_opportunities = history / "MISSED_OPPORTUNITIES.md"
 
@@ -451,6 +483,42 @@ def main() -> int:
         encoding="utf-8",
     )
 
+    history_trends.write_text(
+        "# History Trends\\n\\n"
+        f"- archived_attempts_total: `{attempt_count}`\\n"
+        f"- recurring_failure_class_count: `{len(recurring_classes)}`\\n"
+        f"- one_off_failure_class_count: `{len(one_off_classes)}`\\n"
+        "\\n## Recurring Failure Classes\\n"
+        + (
+            "\\n".join(
+                f"- {key}: imports_seen={int(value[\"imports_seen\"])}, total_lines={int(value[\"total_lines\"])}, first_seen={value[\"first_seen\"]}, latest_seen={value[\"latest_seen\"]}"
+                for key, value in sorted(recurring_classes.items())
+            )
+            if recurring_classes
+            else "- none"
+        )
+        + "\\n\\n## One-Off Failure Classes\\n"
+        + (
+            "\\n".join(
+                f"- {key}: imports_seen={int(value[\"imports_seen\"])}, total_lines={int(value[\"total_lines\"])}, first_seen={value[\"first_seen\"]}, latest_seen={value[\"latest_seen\"]}"
+                for key, value in sorted(one_off_classes.items())
+            )
+            if one_off_classes
+            else "- none"
+        )
+        + "\\n\\n## Latest 5 Imports\\n"
+        + (
+            "\\n".join(
+                f"- {record.get(\"archived_utc\", \"unknown\")} | {record.get(\"source_name\", \"unknown\")} | failure_lines={record.get(\"failure_line_count\", 0)} | missed_opportunities={record.get(\"missed_opportunity_count\", 0)}"
+                for record in records[-5:]
+            )
+            if records
+            else "- none"
+        )
+        + "\\n",
+        encoding="utf-8",
+    )
+
     failure_patterns.write_text(
         "# Failure Patterns\\n\\n"
         + (
@@ -483,6 +551,7 @@ def main() -> int:
     print(f"UPDATED {attempts_path}")
     print(f"UPDATED {history_index}")
     print(f"UPDATED {history_summary}")
+    print(f"UPDATED {history_trends}")
     print(f"UPDATED {failure_patterns}")
     print(f"UPDATED {missed_opportunities}")
     return 0
