@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+
 def extended_required_floor_files() -> list[str]:
     return [
         "mkdocs.yml",
@@ -14,7 +15,10 @@ def extended_required_floor_files() -> list[str]:
         "docs/history/HISTORY_INDEX.md",
         "docs/history/FAILURE_PATTERNS.md",
         "docs/history/MISSED_OPPORTUNITIES.md",
+        "tools/render_project_docs_status.py",
+        "tools/render_freshness_gauge.py",
     ]
+
 
 def mkdocs_templates() -> dict[str, str]:
     return {
@@ -45,6 +49,10 @@ nav:
   - Latest Run: LATEST_RUN.md
   - Latest Inventory: LATEST_INVENTORY.md
   - Freshness Gauge: FRESHNESS_GAUGE.md
+  - History:
+      - History Index: history/HISTORY_INDEX.md
+      - Failure Patterns: history/FAILURE_PATTERNS.md
+      - Missed Opportunities: history/MISSED_OPPORTUNITIES.md
 """,
         "docs/index.md": """# {{PUBLIC_TITLE}}
 
@@ -101,6 +109,7 @@ This page is the truthful current component view for this repo.
 | Latest run placeholder | Confirmed if file exists | future execution truth surface | docs review | unknown | unknown | check `docs/LATEST_RUN.md` |
 | Latest inventory placeholder | Confirmed if file exists | future runtime truth surface | docs review | unknown | unknown | check `docs/LATEST_INVENTORY.md` |
 | Freshness gauge placeholder | Confirmed if file exists | future freshness surface | docs review | unknown | unknown | check `docs/FRESHNESS_GAUGE.md` |
+| Render helper scripts | Confirmed if file exists | status and freshness rendering | docs/status JSON inputs | unknown | unknown | run the helper scripts in `tools/` |
 """,
         "docs/LATEST_RUN.md": """# Latest Run
 
@@ -126,5 +135,132 @@ No failure patterns have been recorded yet.
         "docs/history/MISSED_OPPORTUNITIES.md": """# Missed Opportunities
 
 No missed opportunities have been recorded yet.
+""",
+        "tools/render_project_docs_status.py": """#!/usr/bin/env python3
+from __future__ import annotations
+
+import json
+from pathlib import Path
+
+repo = Path(__file__).resolve().parent.parent
+docs = repo / "docs"
+status = docs / "status"
+
+docs.mkdir(parents=True, exist_ok=True)
+status.mkdir(parents=True, exist_ok=True)
+
+run_json = status / "LATEST_RUN.json"
+inv_json = status / "LATEST_INVENTORY.json"
+
+run_md = ["# Latest Run", "", "No run receipt has been recorded yet."]
+inv_md = ["# Latest Inventory", "", "No inventory snapshot has been recorded yet."]
+
+if run_json.exists():
+    try:
+        data = json.loads(run_json.read_text(encoding="utf-8"))
+        timing = data.get("timing", {})
+        notes_value = data.get("notes", "")
+
+        if isinstance(notes_value, list):
+            notes_lines = [f"- {x}" for x in notes_value] if notes_value else ["- none"]
+        else:
+            notes_text = str(notes_value).strip()
+            notes_lines = [notes_text] if notes_text else ["- none"]
+
+        run_md = [
+            "# Latest Run",
+            "",
+            f"- run_label: `{data.get('run_label', 'UNSET')}`",
+            f"- status: `{data.get('status', 'UNSET')}`",
+            f"- generated_utc: `{data.get('generated_utc', 'UNSET')}`",
+            f"- start_time: `{timing.get('start_local', 'UNSET')}`",
+            f"- finish_time: `{timing.get('end_local', 'UNSET')}`",
+            f"- elapsed_seconds: `{timing.get('run_elapsed_sec', 'UNSET')}`",
+            f"- next_step: `{data.get('next_step', 'UNSET') or 'UNSET'}`",
+            "",
+            "## Notes",
+            *notes_lines,
+        ]
+    except Exception as exc:
+        run_md = [
+            "# Latest Run",
+            "",
+            f"Failed to render run status: `{exc}`",
+        ]
+
+if inv_json.exists():
+    try:
+        data = json.loads(inv_json.read_text(encoding="utf-8"))
+        host = data.get("host", {})
+        inv_md = [
+            "# Latest Inventory",
+            "",
+            f"- label: `{data.get('label', 'UNSET')}`",
+            f"- generated_utc: `{data.get('generated_utc', 'UNSET')}`",
+            f"- host: `{host.get('hostname', 'UNSET')}`",
+            f"- fqdn: `{host.get('fqdn', 'UNSET')}`",
+            f"- platform: `{host.get('platform', 'UNSET')}`",
+            f"- python: `{host.get('python', 'UNSET')}`",
+        ]
+    except Exception as exc:
+        inv_md = [
+            "# Latest Inventory",
+            "",
+            f"Failed to render inventory status: `{exc}`",
+        ]
+
+(docs / "LATEST_RUN.md").write_text("\\n".join(run_md) + "\\n", encoding="utf-8")
+(docs / "LATEST_INVENTORY.md").write_text("\\n".join(inv_md) + "\\n", encoding="utf-8")
+
+print("WROTE docs/LATEST_RUN.md")
+print("WROTE docs/LATEST_INVENTORY.md")
+""",
+        "tools/render_freshness_gauge.py": """#!/usr/bin/env python3
+from __future__ import annotations
+
+from datetime import UTC, datetime
+from pathlib import Path
+
+repo = Path(__file__).resolve().parent.parent
+docs = repo / "docs"
+status = docs / "status"
+
+docs.mkdir(parents=True, exist_ok=True)
+status.mkdir(parents=True, exist_ok=True)
+
+run_json = status / "LATEST_RUN.json"
+inv_json = status / "LATEST_INVENTORY.json"
+now = datetime.now(UTC)
+
+def age_days(path: Path) -> int | None:
+    if not path.exists():
+        return None
+    mtime = datetime.fromtimestamp(path.stat().st_mtime, tz=UTC)
+    return (now - mtime).days
+
+def classify(age: int | None) -> str:
+    if age is None:
+        return "unknown"
+    if age <= 7:
+        return "fresh"
+    if age <= 30:
+        return "aging"
+    return "stale"
+
+run_age = age_days(run_json)
+inv_age = age_days(inv_json)
+
+lines = [
+    "# Freshness Gauge",
+    "",
+    f"- generated_utc: `{now.strftime('%Y-%m-%d %H:%M:%S UTC')}`",
+    f"- latest_run_json_age_days: `{run_age if run_age is not None else 'missing'}`",
+    f"- latest_inventory_json_age_days: `{inv_age if inv_age is not None else 'missing'}`",
+    f"- run_status: `{classify(run_age)}`",
+    f"- inventory_status: `{classify(inv_age)}`",
+]
+
+(docs / "FRESHNESS_GAUGE.md").write_text("\\n".join(lines) + "\\n", encoding="utf-8")
+print("WROTE docs/FRESHNESS_GAUGE.md")
 """,
     }
