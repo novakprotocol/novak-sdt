@@ -22,8 +22,11 @@ nav:
   - Home: index.md
   - Proofs: PROOFS.md
   - Reports: REPORTS.md
+  - Current Repo Report (Markdown): status/SDT_REPO_REPORT.md
   - GitHub Pages: GITHUB_PAGES.md
+  - Case Study: CASE_STUDY.md
   - SDT 101: SDT_101.md
+  - Before / After Example: EXAMPLE_BASELINE_BEFORE_AFTER.md
   - Created Docs Index: SDT_CREATED_DOCS_INDEX.md
   - Diagrams:
       - Operational Flow: DIAGRAM_01_OPERATIONAL_FLOW.md
