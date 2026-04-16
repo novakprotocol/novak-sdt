@@ -17,6 +17,7 @@ def extended_required_floor_files() -> list[str]:
         "docs/history/MISSED_OPPORTUNITIES.md",
         "tools/render_project_docs_status.py",
         "tools/render_freshness_gauge.py",
+        ".github/workflows/pages.yml",
     ]
 
 
@@ -110,6 +111,7 @@ This page is the truthful current component view for this repo.
 | Latest inventory placeholder | Confirmed if file exists | future runtime truth surface | docs review | unknown | unknown | check `docs/LATEST_INVENTORY.md` |
 | Freshness gauge placeholder | Confirmed if file exists | future freshness surface | docs review | unknown | unknown | check `docs/FRESHNESS_GAUGE.md` |
 | Render helper scripts | Confirmed if file exists | status and freshness rendering | docs/status JSON inputs | unknown | unknown | run the helper scripts in `tools/` |
+| Pages workflow | Confirmed if workflow file exists | publish docs automatically | GitHub Pages | unknown | unknown | check `.github/workflows/pages.yml` |
 """,
         "docs/LATEST_RUN.md": """# Latest Run
 
@@ -262,5 +264,57 @@ lines = [
 
 (docs / "FRESHNESS_GAUGE.md").write_text("\\n".join(lines) + "\\n", encoding="utf-8")
 print("WROTE docs/FRESHNESS_GAUGE.md")
+""",
+        ".github/workflows/pages.yml": """name: Pages
+
+on:
+  push:
+    branches:
+      - main
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      - name: Install MkDocs
+        run: |
+          python -m pip install --upgrade pip
+          python -m pip install mkdocs mkdocs-material pymdown-extensions
+
+      - name: Build site
+        run: mkdocs build
+
+      - name: Upload Pages artifact
+        uses: actions/upload-pages-artifact@v3
+        with:
+          path: site
+
+  deploy:
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+
+    runs-on: ubuntu-latest
+    needs: build
+
+    steps:
+      - name: Deploy to GitHub Pages
+        id: deployment
+        uses: actions/deploy-pages@v4
 """,
     }
