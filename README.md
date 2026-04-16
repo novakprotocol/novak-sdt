@@ -197,3 +197,41 @@ For serious server or infra repos, SDT now also supports:
 
 Use inventory mode for before/after server truth.
 
+## Documentation Doctrine
+
+Documentation is part of the product, not an afterthought.
+
+**Principle**
+
+Every meaningful coding action should leave behind enough structured truth that a new human or AI can understand what was built, why it changed, what failed, what is currently real, and what should happen next — without exposing secrets or burying signal in noise.
+
+Every meaningful coding action should leave behind enough structured truth that a new human or AI can understand:
+
+- what was built
+- why it changed
+- what failed
+- what is currently real
+- what should happen next
+
+Our standard is not maximum volume. Our standard is documentation that is:
+
+- accurate
+- structured
+- current
+- task-oriented
+- security-aware
+
+We separate documentation into clear lanes:
+
+- **Human docs** — purpose, architecture, setup, operation, recovery, and current truth
+- **Operational evidence** — runs, changes, failures, trends, signals, and priority
+- **Security-aware records** — controls, boundaries, approvals, and process, never secrets
+
+Documentation must reduce mystery, preserve continuity, support recovery, and improve safe reuse by both humans and AI.
+
+Do not bury signal in noise.  
+Do not present assumptions as facts.  
+Do not expose secrets, credentials, or unnecessary internal risk.
+
+If it matters, it should be documented clearly enough that work can continue without the original author.
+
