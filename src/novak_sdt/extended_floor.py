@@ -26,7 +26,11 @@ def extended_required_floor_files() -> list[str]:
         "docs/estate/ESTATE_INGEST_SUMMARY.md",
         "docs/estate/ESTATE_CATALOG.md",
         "docs/estate/ESTATE_REFRESH_STATUS.md",
+        "docs/estate/ESTATE_ARCHIVE_INDEX.md",
+        "docs/estate/ESTATE_DELTA.md",
+        "docs/estate/ESTATE_TRENDS.md",
         "estate/estate_sources.json",
+        "estate/archive/estate_refresh_history.ndjson",
         "docs/history/FAILURE_PATTERNS.md",
         "docs/history/MISSED_OPPORTUNITIES.md",
         "docs/SDT_HISTORY_LANE.md",
@@ -86,6 +90,9 @@ nav:
       - Estate Ingest Summary: estate/ESTATE_INGEST_SUMMARY.md
       - Estate Catalog: estate/ESTATE_CATALOG.md
       - Estate Refresh Status: estate/ESTATE_REFRESH_STATUS.md
+      - Estate Archive Index: estate/ESTATE_ARCHIVE_INDEX.md
+      - Estate Delta: estate/ESTATE_DELTA.md
+      - Estate Trends: estate/ESTATE_TRENDS.md
       - Failure Patterns: history/FAILURE_PATTERNS.md
       - Missed Opportunities: history/MISSED_OPPORTUNITIES.md
 """,
@@ -245,6 +252,20 @@ No estate catalog has been recorded yet.
 No estate refresh status has been recorded yet.
 """,
         "estate/estate_sources.json": """[]
+""",
+        "docs/estate/ESTATE_ARCHIVE_INDEX.md": """# Estate Archive Index
+
+No estate archive index has been recorded yet.
+""",
+        "docs/estate/ESTATE_DELTA.md": """# Estate Delta
+
+No estate delta has been recorded yet.
+""",
+        "docs/estate/ESTATE_TRENDS.md": """# Estate Trends
+
+No estate trends have been recorded yet.
+""",
+        "estate/archive/estate_refresh_history.ndjson": """
 """,
 "docs/history/FAILURE_PATTERNS.md": """# Failure Patterns
 
@@ -1104,6 +1125,14 @@ def priority_bucket(score: float) -> str:
     return label_from_threshold(score, PRIORITY_THRESHOLDS)
 
 
+def bucket_rank(label: str) -> int:
+    return {
+        "normal": 0,
+        "elevated": 1,
+        "urgent": 2,
+    }.get(label, 0)
+
+
 def approval_gate(
     failure_label: str,
     weighted_severity_label: str,
@@ -1193,16 +1222,30 @@ def resolve_input(arg: str, base_dir: Path | None = None) -> tuple[str, Path]:
     return final_label, ndjson
 
 
-def load_records(path: Path) -> list[dict]:
+def read_json_lines(path: Path) -> list[dict]:
     records: list[dict] = []
+    if not path.is_file():
+        return records
     for raw_line in path.read_text(encoding="utf-8").splitlines():
         if not raw_line.strip():
             continue
         try:
-            records.append(json.loads(raw_line))
+            loaded = json.loads(raw_line)
         except json.JSONDecodeError:
             continue
+        if isinstance(loaded, dict):
+            records.append(loaded)
     return records
+
+
+def append_json_line(path: Path, payload: dict) -> None:
+    path.parent.mkdir(parents=True, exist_ok=True)
+    with path.open("a", encoding="utf-8") as handle:
+        handle.write(json.dumps(payload, sort_keys=True) + "\\n")
+
+
+def load_records(path: Path) -> list[dict]:
+    return read_json_lines(path)
 
 
 def pick_top_class(classes: dict[str, int]) -> str:
@@ -1332,6 +1375,83 @@ def join_tags(tags: list[str]) -> str:
     return ",".join(tags)
 
 
+def average(values: list[int | float]) -> float:
+    if not values:
+        return 0.0
+    return float(sum(values) / len(values))
+
+
+def rel_or_abs(path: Path, root: Path) -> str:
+    try:
+        return str(path.relative_to(root))
+    except ValueError:
+        return str(path)
+
+
+def repo_map(snapshot: dict) -> dict[str, dict]:
+    return {
+        str(item.get("label", "")): item
+        for item in snapshot.get("repos", [])
+        if isinstance(item, dict) and str(item.get("label", "")).strip()
+    }
+
+
+def repo_order_map(snapshot: dict) -> dict[str, int]:
+    return {
+        str(item.get("label", "")): idx
+        for idx, item in enumerate(snapshot.get("repos", []), start=1)
+        if isinstance(item, dict) and str(item.get("label", "")).strip()
+    }
+
+
+def snapshot_summary_line(snapshot: dict) -> str:
+    return (
+        f"- {snapshot.get('generated_utc', 'unknown')}: "
+        f"usable_sources={snapshot.get('usable_source_count', 0)}, "
+        f"block={snapshot.get('sources_in_block', 0)}, "
+        f"review={snapshot.get('sources_in_review', 0)}, "
+        f"proceed={snapshot.get('sources_in_proceed', 0)}, "
+        f"highest_bucket={snapshot.get('highest_priority_bucket_across_estate', 'normal')}, "
+        f"total_latest_weighted_severity={snapshot.get('total_latest_weighted_severity_across_sources', 0)}"
+    )
+
+
+def make_snapshot(repo_rows: list[dict], *, generated_utc: str, manifest_count: int, discover_root_count: int, explicit_count: int, merged_count: int, skipped_count: int, highest_bucket: str, block_count: int, review_count: int, proceed_count: int, total_latest_weighted_severity: int) -> dict:
+    repos = [
+        {
+            "label": row["label"],
+            "approval_gate": row["approval_gate"],
+            "operator_mode": row["operator_mode"],
+            "highest_priority_bucket": row["highest_priority_bucket"],
+            "repo_priority_score": round(float(row["repo_priority_score"]), 2),
+            "latest_weighted_severity": int(row["latest_weighted_severity"]),
+            "latest_failure_lines": int(row["latest_failure_lines"]),
+            "top_class": row["top_class"],
+            "owner": row["owner"],
+            "environment": row["environment"],
+            "host": row["host"],
+            "repo_class": row["repo_class"],
+            "tags": list(row["tags"]),
+        }
+        for row in repo_rows
+    ]
+    return {
+        "generated_utc": generated_utc,
+        "manifest_file_count": manifest_count,
+        "discover_root_count": discover_root_count,
+        "explicit_source_count": explicit_count,
+        "unique_merged_source_count": merged_count,
+        "usable_source_count": len(repo_rows),
+        "skipped_source_count": skipped_count,
+        "highest_priority_bucket_across_estate": highest_bucket,
+        "sources_in_block": block_count,
+        "sources_in_review": review_count,
+        "sources_in_proceed": proceed_count,
+        "total_latest_weighted_severity_across_sources": total_latest_weighted_severity,
+        "repos": repos,
+    }
+
+
 def main() -> int:
     parser = argparse.ArgumentParser(
         description="Build estate-level SDT history reports from explicit, manifest-driven, or auto-discovered sources."
@@ -1365,7 +1485,11 @@ def main() -> int:
     estate_ingest_summary = estate_dir / "ESTATE_INGEST_SUMMARY.md"
     estate_catalog = estate_dir / "ESTATE_CATALOG.md"
     estate_refresh_status = estate_dir / "ESTATE_REFRESH_STATUS.md"
+    estate_archive_index = estate_dir / "ESTATE_ARCHIVE_INDEX.md"
+    estate_delta = estate_dir / "ESTATE_DELTA.md"
+    estate_trends = estate_dir / "ESTATE_TRENDS.md"
 
+    archive_path = repo / "estate" / "archive" / "estate_refresh_history.ndjson"
     refresh_generated_utc = now_utc()
 
     explicit_sources = [explicit_source_from_arg(arg) for arg in args.sources]
@@ -1492,6 +1616,27 @@ def main() -> int:
     total_latest_weighted_severity = sum(int(row["latest_weighted_severity"]) for row in repo_rows)
     estate_highest_bucket = repo_rows[0]["highest_priority_bucket"] if repo_rows else "normal"
 
+    prior_snapshots = read_json_lines(archive_path)
+    previous_snapshot = prior_snapshots[-1] if prior_snapshots else None
+
+    current_snapshot = make_snapshot(
+        repo_rows,
+        generated_utc=refresh_generated_utc,
+        manifest_count=len(args.manifest),
+        discover_root_count=len(args.discover_root),
+        explicit_count=len(explicit_sources),
+        merged_count=len(merged_sources),
+        skipped_count=len(skipped_sources),
+        highest_bucket=estate_highest_bucket,
+        block_count=block_count,
+        review_count=review_count,
+        proceed_count=proceed_count,
+        total_latest_weighted_severity=total_latest_weighted_severity,
+    )
+
+    append_json_line(archive_path, current_snapshot)
+    all_snapshots = prior_snapshots + [current_snapshot]
+
     estate_history_summary.write_text(
         "# Estate History Summary\\n\\n"
         f"- estate_source_count: `{len(repo_rows)}`\\n"
@@ -1602,6 +1747,9 @@ def main() -> int:
         encoding="utf-8",
     )
 
+    archive_entry_count = len(all_snapshots)
+    delta_available = previous_snapshot is not None
+
     estate_refresh_status.write_text(
         "# Estate Refresh Status\\n\\n"
         f"- refresh_generated_utc: `{refresh_generated_utc}`\\n"
@@ -1611,6 +1759,8 @@ def main() -> int:
         f"- unique_merged_source_count: `{len(merged_sources)}`\\n"
         f"- usable_source_count: `{len(repo_rows)}`\\n"
         f"- skipped_source_count: `{len(skipped_sources)}`\\n"
+        f"- refresh_archive_entry_count: `{archive_entry_count}`\\n"
+        f"- delta_available: `{'yes' if delta_available else 'no'}`\\n"
         f"- highest_priority_bucket_across_estate: `{estate_highest_bucket}`\\n"
         f"- sources_in_block: `{block_count}`\\n"
         f"- sources_in_review: `{review_count}`\\n"
@@ -1633,12 +1783,189 @@ def main() -> int:
         encoding="utf-8",
     )
 
+    previous_map = repo_map(previous_snapshot) if previous_snapshot else {}
+    current_map = repo_map(current_snapshot)
+    previous_order = repo_order_map(previous_snapshot) if previous_snapshot else {}
+    current_order = repo_order_map(current_snapshot)
+
+    if previous_snapshot:
+        new_labels = sorted(set(current_map) - set(previous_map))
+        removed_labels = sorted(set(previous_map) - set(current_map))
+
+        gate_change_lines: list[str] = []
+        severity_change_lines: list[tuple[int, str]] = []
+        movement_lines: list[str] = []
+
+        for label in sorted(set(current_map) & set(previous_map)):
+            prev = previous_map[label]
+            cur = current_map[label]
+
+            if (
+                prev.get("approval_gate") != cur.get("approval_gate")
+                or prev.get("highest_priority_bucket") != cur.get("highest_priority_bucket")
+            ):
+                gate_change_lines.append(
+                    f"- {label}: gate {prev.get('approval_gate', 'unknown')} -> {cur.get('approval_gate', 'unknown')}, priority_bucket {prev.get('highest_priority_bucket', 'unknown')} -> {cur.get('highest_priority_bucket', 'unknown')}"
+                )
+
+            prev_severity = int(prev.get("latest_weighted_severity", 0))
+            cur_severity = int(cur.get("latest_weighted_severity", 0))
+            if prev_severity != cur_severity:
+                delta_value = cur_severity - prev_severity
+                severity_change_lines.append(
+                    (
+                        abs(delta_value),
+                        f"- {label}: latest_weighted_severity {prev_severity} -> {cur_severity} (delta {delta_value:+d})",
+                    )
+                )
+
+            prev_pos = previous_order.get(label)
+            cur_pos = current_order.get(label)
+            if prev_pos is not None and cur_pos is not None and prev_pos != cur_pos:
+                movement_lines.append(
+                    f"- {label}: rank {prev_pos} -> {cur_pos}"
+                )
+
+        severity_change_lines.sort(key=lambda item: (-item[0], item[1]))
+
+        estate_delta.write_text(
+            "# Estate Delta\\n\\n"
+            f"- previous_refresh_generated_utc: `{previous_snapshot.get('generated_utc', 'unknown')}`\\n"
+            f"- current_refresh_generated_utc: `{current_snapshot.get('generated_utc', 'unknown')}`\\n"
+            f"- usable_source_count_delta: `{int(current_snapshot.get('usable_source_count', 0)) - int(previous_snapshot.get('usable_source_count', 0)):+d}`\\n"
+            f"- sources_in_block_delta: `{int(current_snapshot.get('sources_in_block', 0)) - int(previous_snapshot.get('sources_in_block', 0)):+d}`\\n"
+            f"- sources_in_review_delta: `{int(current_snapshot.get('sources_in_review', 0)) - int(previous_snapshot.get('sources_in_review', 0)):+d}`\\n"
+            f"- sources_in_proceed_delta: `{int(current_snapshot.get('sources_in_proceed', 0)) - int(previous_snapshot.get('sources_in_proceed', 0)):+d}`\\n"
+            f"- total_latest_weighted_severity_delta: `{int(current_snapshot.get('total_latest_weighted_severity_across_sources', 0)) - int(previous_snapshot.get('total_latest_weighted_severity_across_sources', 0)):+d}`\\n"
+            f"- highest_priority_bucket_previous: `{previous_snapshot.get('highest_priority_bucket_across_estate', 'normal')}`\\n"
+            f"- highest_priority_bucket_current: `{current_snapshot.get('highest_priority_bucket_across_estate', 'normal')}`\\n"
+            "\\n## New Sources\\n"
+            + (
+                "\\n".join(f"- {label}" for label in new_labels)
+                if new_labels
+                else "- none"
+            )
+            + "\\n\\n## Removed Sources\\n"
+            + (
+                "\\n".join(f"- {label}" for label in removed_labels)
+                if removed_labels
+                else "- none"
+            )
+            + "\\n\\n## Gate Or Priority Changes\\n"
+            + (
+                "\\n".join(gate_change_lines)
+                if gate_change_lines
+                else "- none"
+            )
+            + "\\n\\n## Severity Changes\\n"
+            + (
+                "\\n".join(line for _, line in severity_change_lines[:10])
+                if severity_change_lines
+                else "- none"
+            )
+            + "\\n\\n## Rank Movement\\n"
+            + (
+                "\\n".join(movement_lines)
+                if movement_lines
+                else "- none"
+            )
+            + "\\n",
+            encoding="utf-8",
+        )
+    else:
+        estate_delta.write_text(
+            "# Estate Delta\\n\\n"
+            "- previous_refresh_generated_utc: `none`\\n"
+            f"- current_refresh_generated_utc: `{current_snapshot.get('generated_utc', 'unknown')}`\\n"
+            "- delta_available: `no`\\n\\n"
+            "No prior estate refresh exists yet, so delta reporting starts on the next refresh.\\n",
+            encoding="utf-8",
+        )
+
+    highest_bucket_seen = "normal"
+    for snapshot in all_snapshots:
+        bucket = str(snapshot.get("highest_priority_bucket_across_estate", "normal"))
+        if bucket_rank(bucket) > bucket_rank(highest_bucket_seen):
+            highest_bucket_seen = bucket
+
+    top_rank_counter = Counter()
+    block_counter = Counter()
+
+    for snapshot in all_snapshots:
+        repos = snapshot.get("repos", []) or []
+        if repos:
+            top_rank_counter.update([str(repos[0].get("label", "unknown"))])
+        for item in repos:
+            if str(item.get("approval_gate", "")) == "block":
+                block_counter.update([str(item.get("label", "unknown"))])
+
+    usable_source_values = [int(snapshot.get("usable_source_count", 0)) for snapshot in all_snapshots]
+    total_severity_values = [int(snapshot.get("total_latest_weighted_severity_across_sources", 0)) for snapshot in all_snapshots]
+    max_block_count_seen = max((int(snapshot.get("sources_in_block", 0)) for snapshot in all_snapshots), default=0)
+
+    estate_trends.write_text(
+        "# Estate Trends\\n\\n"
+        f"- refresh_archive_entry_count: `{len(all_snapshots)}`\\n"
+        f"- first_refresh_generated_utc: `{all_snapshots[0].get('generated_utc', 'unknown') if all_snapshots else 'none'}`\\n"
+        f"- latest_refresh_generated_utc: `{all_snapshots[-1].get('generated_utc', 'unknown') if all_snapshots else 'none'}`\\n"
+        f"- highest_priority_bucket_seen: `{highest_bucket_seen}`\\n"
+        f"- average_usable_source_count: `{average(usable_source_values):.2f}`\\n"
+        f"- average_total_latest_weighted_severity: `{average(total_severity_values):.2f}`\\n"
+        f"- max_sources_in_block_seen: `{max_block_count_seen}`\\n"
+        "\\n## Refresh History\\n"
+        + (
+            "\\n".join(snapshot_summary_line(snapshot) for snapshot in all_snapshots[-10:])
+            if all_snapshots
+            else "- none"
+        )
+        + "\\n\\n## Sources Most Often Top-Ranked\\n"
+        + (
+            "\\n".join(
+                f"- {label}: {count}"
+                for label, count in top_rank_counter.most_common(10)
+            )
+            if top_rank_counter
+            else "- none"
+        )
+        + "\\n\\n## Sources Most Often Blocked\\n"
+        + (
+            "\\n".join(
+                f"- {label}: {count}"
+                for label, count in block_counter.most_common(10)
+            )
+            if block_counter
+            else "- none"
+        )
+        + "\\n",
+        encoding="utf-8",
+    )
+
+    estate_archive_index.write_text(
+        "# Estate Archive Index\\n\\n"
+        f"- archive_path: `{rel_or_abs(archive_path, repo)}`\\n"
+        f"- refresh_archive_entry_count: `{len(all_snapshots)}`\\n"
+        f"- oldest_refresh_generated_utc: `{all_snapshots[0].get('generated_utc', 'unknown') if all_snapshots else 'none'}`\\n"
+        f"- latest_refresh_generated_utc: `{all_snapshots[-1].get('generated_utc', 'unknown') if all_snapshots else 'none'}`\\n"
+        "\\n## Latest Archive Entries\\n"
+        + (
+            "\\n".join(snapshot_summary_line(snapshot) for snapshot in all_snapshots[-10:])
+            if all_snapshots
+            else "- none"
+        )
+        + "\\n",
+        encoding="utf-8",
+    )
+
     print(f"UPDATED {estate_history_summary}")
     print(f"UPDATED {estate_priority_queue}")
     print(f"UPDATED {estate_action_queue}")
     print(f"UPDATED {estate_ingest_summary}")
     print(f"UPDATED {estate_catalog}")
     print(f"UPDATED {estate_refresh_status}")
+    print(f"UPDATED {estate_archive_index}")
+    print(f"UPDATED {estate_delta}")
+    print(f"UPDATED {estate_trends}")
+    print(f"UPDATED {archive_path}")
     return 0
 
 
