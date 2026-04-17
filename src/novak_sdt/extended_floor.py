@@ -31,12 +31,18 @@ def extended_required_floor_files() -> list[str]:
         "docs/estate/ESTATE_TRENDS.md",
         "docs/estate/ESTATE_CADENCE.md",
         "docs/estate/ESTATE_RUNNER_STATUS.md",
+        "docs/estate/ESTATE_FAILURE_POLICY.md",
+        "docs/estate/ESTATE_NOTIFICATIONS.md",
+        "docs/estate/ESTATE_NOTIFICATION_STATUS.md",
         "estate/estate_sources.json",
+        "estate/notification_config.json",
+        "estate/outbox/notifications.ndjson",
         "estate/archive/estate_refresh_history.ndjson",
         "ops/systemd/estate-refresh.service",
         "ops/systemd/estate-refresh.timer",
         "bin/estate-refresh-runner.sh",
         "bin/install-estate-refresh-timer.sh",
+        "bin/estate-notify.sh",
         "docs/history/FAILURE_PATTERNS.md",
         "docs/history/MISSED_OPPORTUNITIES.md",
         "docs/SDT_HISTORY_LANE.md",
@@ -101,6 +107,9 @@ nav:
       - Estate Trends: estate/ESTATE_TRENDS.md
       - Estate Cadence: estate/ESTATE_CADENCE.md
       - Estate Runner Status: estate/ESTATE_RUNNER_STATUS.md
+      - Estate Failure Policy: estate/ESTATE_FAILURE_POLICY.md
+      - Estate Notifications: estate/ESTATE_NOTIFICATIONS.md
+      - Estate Notification Status: estate/ESTATE_NOTIFICATION_STATUS.md
       - Failure Patterns: history/FAILURE_PATTERNS.md
       - Missed Opportunities: history/MISSED_OPPORTUNITIES.md
 """,
@@ -261,6 +270,22 @@ No estate refresh status has been recorded yet.
 """,
         "estate/estate_sources.json": """[]
 """,
+        "estate/notification_config.json": """[
+  {
+    "name": "local-log",
+    "type": "log",
+    "enabled": true
+  },
+  {
+    "name": "webhook-example",
+    "type": "webhook",
+    "enabled": false,
+    "url": "https://example.invalid/estate-refresh"
+  }
+]
+""",
+        "estate/outbox/notifications.ndjson": """
+""",
         "docs/estate/ESTATE_ARCHIVE_INDEX.md": """# Estate Archive Index
 
 No estate archive index has been recorded yet.
@@ -293,6 +318,45 @@ No estate trends have been recorded yet.
         "docs/estate/ESTATE_RUNNER_STATUS.md": """# Estate Runner Status
 
 No estate runner status has been recorded yet.
+""",
+        "docs/estate/ESTATE_FAILURE_POLICY.md": """# Estate Failure Policy
+
+## Default hardening policy
+
+- prevent overlapping refresh runs with a lock directory
+- retry failed refresh commands before marking the run as failed
+- preserve the underlying exit code from the refresh path
+- write runner status for success, failure, and lock busy outcomes
+- run notifications after success, failure, or overlap prevention
+- notification failure must not change the refresh result
+
+## Default exit semantics
+
+- `0` = success
+- `75` = lock busy / overlap prevented
+- non-zero refresh exit code = refresh failed after retry policy
+""",
+        "docs/estate/ESTATE_NOTIFICATIONS.md": """# Estate Notifications
+
+## Purpose
+
+This lane records how estate refresh notifications are configured and handled.
+
+## Default behavior
+
+- notifications are driven by `estate/notification_config.json`
+- notification results are recorded in `estate/outbox/notifications.ndjson`
+- notification summary is written to `docs/estate/ESTATE_NOTIFICATION_STATUS.md`
+- network notifications stay disabled unless `ESTATE_ENABLE_NETWORK_NOTIFICATIONS=1`
+
+## Supported hook types
+
+- `log` for local outbox recording
+- `webhook` for HTTP POST delivery when network sending is enabled
+""",
+        "docs/estate/ESTATE_NOTIFICATION_STATUS.md": """# Estate Notification Status
+
+No estate notification status has been recorded yet.
 """,
 "docs/history/FAILURE_PATTERNS.md": """# Failure Patterns
 
@@ -2066,8 +2130,11 @@ After=network-online.target
 Type=oneshot
 User=__RUN_AS_USER__
 WorkingDirectory=__REPO_DIR__
+Environment="ESTATE_RUNNER_MODE=timer"
 Environment="ESTATE_DISCOVER_ROOTS=__ESTATE_DISCOVER_ROOTS__"
 Environment="ESTATE_MANIFEST_PATH=__REPO_DIR__/estate/estate_sources.json"
+Environment="ESTATE_MAX_RETRIES=__ESTATE_MAX_RETRIES__"
+Environment="ESTATE_RETRY_DELAY_SECONDS=__ESTATE_RETRY_DELAY_SECONDS__"
 ExecStart=/usr/bin/env bash __REPO_DIR__/bin/estate-refresh-runner.sh
 
 [Install]
@@ -2089,20 +2156,28 @@ WantedBy=timers.target
 set -Eeuo pipefail
 
 START_EPOCH="$(date +%s)"
-START_UTC="$(date -u '+%Y-%m-%d %H:%M:%S UTC')"
+START_UTC="$(date -u "+%Y-%m-%d %H:%M:%S UTC")"
 REPO_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 STATUS_DOC="${REPO_DIR}/docs/estate/ESTATE_RUNNER_STATUS.md"
+NOTIFY_HELPER="${REPO_DIR}/bin/estate-notify.sh"
 RUNNER_MODE="${ESTATE_RUNNER_MODE:-manual}"
 MANIFEST_PATH="${ESTATE_MANIFEST_PATH:-${REPO_DIR}/estate/estate_sources.json}"
 DISCOVER_ROOTS="${ESTATE_DISCOVER_ROOTS:-}"
+LOCK_DIR="${ESTATE_LOCK_DIR:-${REPO_DIR}/.estate-refresh.lock}"
+MAX_RETRIES="${ESTATE_MAX_RETRIES:-2}"
+RETRY_DELAY_SECONDS="${ESTATE_RETRY_DELAY_SECONDS:-15}"
 ARGS=("$@")
 ARGS_DISPLAY="(none)"
 OUTCOME="running"
 FINISH_UTC="in-progress"
 ELAPSED_SECONDS="0"
+ATTEMPTS_USED="0"
+LAST_EXIT_CODE="0"
+FAILURE_REASON="none"
+HAVE_LOCK="0"
 
 if [[ "${#ARGS[@]}" -gt 0 ]]; then
-  ARGS_DISPLAY="$(printf '%q ' "${ARGS[@]}")"
+  ARGS_DISPLAY="$(printf "%q " "${ARGS[@]}")"
   ARGS_DISPLAY="${ARGS_DISPLAY% }"
 fi
 
@@ -2118,32 +2193,88 @@ write_status() {
 - manifest_path: \`${MANIFEST_PATH}\`
 - discover_roots: \`${DISCOVER_ROOTS:-none}\`
 - argument_count: \`${#ARGS[@]}\`
+- attempts_used: \`${ATTEMPTS_USED}\`
+- max_retries: \`${MAX_RETRIES}\`
+- retry_delay_seconds: \`${RETRY_DELAY_SECONDS}\`
+- last_exit_code: \`${LAST_EXIT_CODE}\`
+- lock_dir: \`${LOCK_DIR}\`
+- failure_reason: \`${FAILURE_REASON}\`
 - elapsed_seconds: \`${ELAPSED_SECONDS}\`
 
 ## Command
 - refresh_command: \`bash bin/estate-refresh.sh ${ARGS_DISPLAY}\`
 
 ## Notes
+- lock busy exits with code \`75\`
 - run \`bash bin/install-estate-refresh-timer.sh --output-dir /tmp/estate-systemd\` to render timer and service files
-- review \`docs/estate/ESTATE_REFRESH_STATUS.md\` after each run
+- review \`docs/estate/ESTATE_REFRESH_STATUS.md\` and \`docs/estate/ESTATE_NOTIFICATION_STATUS.md\` after each run
 EOF
 }
 
 finish() {
   local rc="$1"
-  FINISH_UTC="$(date -u '+%Y-%m-%d %H:%M:%S UTC')"
+  FINISH_UTC="$(date -u "+%Y-%m-%d %H:%M:%S UTC")"
   ELAPSED_SECONDS="$(( $(date +%s) - START_EPOCH ))"
-  if [[ "${rc}" -eq 0 ]]; then
-    OUTCOME="success"
-  else
-    OUTCOME="failure"
+
+  if [[ "${OUTCOME}" == "running" ]]; then
+    if [[ "${rc}" -eq 0 ]]; then
+      OUTCOME="success"
+      LAST_EXIT_CODE="0"
+      FAILURE_REASON="none"
+    else
+      OUTCOME="failure"
+      LAST_EXIT_CODE="${rc}"
+      FAILURE_REASON="runner terminated unexpectedly"
+    fi
   fi
+
+  if [[ "${HAVE_LOCK}" == "1" ]]; then
+    rmdir "${LOCK_DIR}" 2>/dev/null || true
+  fi
+
   write_status
+
+  if [[ -f "${NOTIFY_HELPER}" ]]; then
+    bash "${NOTIFY_HELPER}"       --event "${OUTCOME}"       --runner-mode "${RUNNER_MODE}"       --exit-code "${LAST_EXIT_CODE}"       --runner-status-doc "${STATUS_DOC}"       --message "${FAILURE_REASON}" || true
+  fi
 }
 
-trap 'rc=$?; finish "${rc}"; exit "${rc}"' EXIT
+trap "rc=\$?; finish \${rc}; exit \${rc}" EXIT
 
-bash "${REPO_DIR}/bin/estate-refresh.sh" "${ARGS[@]}"
+if ! mkdir "${LOCK_DIR}" 2>/dev/null; then
+  OUTCOME="lock-busy"
+  LAST_EXIT_CODE="75"
+  FAILURE_REASON="overlap prevented by lock directory"
+  exit 75
+fi
+HAVE_LOCK="1"
+
+attempt=1
+while (( attempt <= MAX_RETRIES )); do
+  ATTEMPTS_USED="${attempt}"
+  if bash "${REPO_DIR}/bin/estate-refresh.sh" "${ARGS[@]}"; then
+    OUTCOME="success"
+    LAST_EXIT_CODE="0"
+    FAILURE_REASON="none"
+    break
+  else
+    rc="$?"
+    LAST_EXIT_CODE="${rc}"
+    FAILURE_REASON="refresh command failed"
+  fi
+
+  if (( attempt < MAX_RETRIES )); then
+    sleep "${RETRY_DELAY_SECONDS}"
+  fi
+
+  attempt="$((attempt + 1))"
+done
+
+if [[ "${OUTCOME}" != "success" ]]; then
+  OUTCOME="failure"
+  FAILURE_REASON="refresh command failed after retry policy"
+  exit "${LAST_EXIT_CODE}"
+fi
 """,
         "bin/install-estate-refresh-timer.sh": """#!/usr/bin/env bash
 set -Eeuo pipefail
@@ -2155,6 +2286,8 @@ OUTPUT_DIR="${REPO_DIR}/ops/systemd/rendered"
 ON_CALENDAR="${ESTATE_ON_CALENDAR:-daily}"
 RUN_AS_USER="${ESTATE_RUN_AS_USER:-root}"
 DISCOVER_ROOTS="${ESTATE_DISCOVER_ROOTS:-}"
+MAX_RETRIES="${ESTATE_MAX_RETRIES:-2}"
+RETRY_DELAY_SECONDS="${ESTATE_RETRY_DELAY_SECONDS:-30}"
 INSTALL_MODE="no"
 
 while [[ "$#" -gt 0 ]]; do
@@ -2175,6 +2308,14 @@ while [[ "$#" -gt 0 ]]; do
       DISCOVER_ROOTS="$2"
       shift 2
       ;;
+    --max-retries)
+      MAX_RETRIES="$2"
+      shift 2
+      ;;
+    --retry-delay-seconds)
+      RETRY_DELAY_SECONDS="$2"
+      shift 2
+      ;;
     --install)
       INSTALL_MODE="yes"
       shift
@@ -2188,7 +2329,7 @@ done
 
 mkdir -p "${OUTPUT_DIR}"
 
-python3 - "${SERVICE_TEMPLATE}" "${TIMER_TEMPLATE}" "${OUTPUT_DIR}" "${REPO_DIR}" "${RUN_AS_USER}" "${DISCOVER_ROOTS}" "${ON_CALENDAR}" <<'INNERPY'
+python3 - "${SERVICE_TEMPLATE}" "${TIMER_TEMPLATE}" "${OUTPUT_DIR}" "${REPO_DIR}" "${RUN_AS_USER}" "${DISCOVER_ROOTS}" "${ON_CALENDAR}" "${MAX_RETRIES}" "${RETRY_DELAY_SECONDS}" <<INNERPY
 from pathlib import Path
 import sys
 
@@ -2199,12 +2340,16 @@ repo_dir = sys.argv[4]
 run_as_user = sys.argv[5]
 discover_roots = sys.argv[6]
 on_calendar = sys.argv[7]
+max_retries = sys.argv[8]
+retry_delay_seconds = sys.argv[9]
 
 replacements = {
     "__REPO_DIR__": repo_dir,
     "__RUN_AS_USER__": run_as_user,
     "__ESTATE_DISCOVER_ROOTS__": discover_roots,
     "__ON_CALENDAR__": on_calendar,
+    "__ESTATE_MAX_RETRIES__": max_retries,
+    "__ESTATE_RETRY_DELAY_SECONDS__": retry_delay_seconds,
 }
 
 service_text = service_template
@@ -2228,6 +2373,176 @@ if [[ "${INSTALL_MODE}" == "yes" ]]; then
   echo "INSTALLED /etc/systemd/system/estate-refresh.timer"
   echo "NEXT: systemctl enable --now estate-refresh.timer"
 fi
+""",
+        "bin/estate-notify.sh": """#!/usr/bin/env bash
+set -Eeuo pipefail
+
+REPO_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+CONFIG_PATH="${ESTATE_NOTIFICATION_CONFIG:-${REPO_DIR}/estate/notification_config.json}"
+STATUS_DOC="${REPO_DIR}/docs/estate/ESTATE_NOTIFICATION_STATUS.md"
+OUTBOX_PATH="${REPO_DIR}/estate/outbox/notifications.ndjson"
+
+EVENT="unknown"
+RUNNER_MODE="unknown"
+EXIT_CODE="0"
+RUNNER_STATUS_DOC=""
+MESSAGE="none"
+
+while [[ "$#" -gt 0 ]]; do
+  case "$1" in
+    --event)
+      EVENT="$2"
+      shift 2
+      ;;
+    --runner-mode)
+      RUNNER_MODE="$2"
+      shift 2
+      ;;
+    --exit-code)
+      EXIT_CODE="$2"
+      shift 2
+      ;;
+    --runner-status-doc)
+      RUNNER_STATUS_DOC="$2"
+      shift 2
+      ;;
+    --message)
+      MESSAGE="$2"
+      shift 2
+      ;;
+    *)
+      echo "ERROR: unknown argument: $1" >&2
+      exit 2
+      ;;
+  esac
+done
+
+mkdir -p "$(dirname "${STATUS_DOC}")"
+mkdir -p "$(dirname "${OUTBOX_PATH}")"
+
+python3 - "${CONFIG_PATH}" "${STATUS_DOC}" "${OUTBOX_PATH}" "${EVENT}" "${RUNNER_MODE}" "${EXIT_CODE}" "${RUNNER_STATUS_DOC}" "${MESSAGE}" <<PYCODE
+from __future__ import annotations
+
+import json
+import os
+import sys
+from datetime import UTC, datetime
+from pathlib import Path
+from urllib import request, error
+
+config_path = Path(sys.argv[1])
+status_doc = Path(sys.argv[2])
+outbox_path = Path(sys.argv[3])
+event = sys.argv[4]
+runner_mode = sys.argv[5]
+exit_code = sys.argv[6]
+runner_status_doc = sys.argv[7]
+message = sys.argv[8]
+
+now_utc = datetime.now(UTC).strftime("%Y-%m-%d %H:%M:%S UTC")
+enable_network = os.environ.get("ESTATE_ENABLE_NETWORK_NOTIFICATIONS", "0") == "1"
+
+try:
+    data = json.loads(config_path.read_text(encoding="utf-8")) if config_path.is_file() else []
+except json.JSONDecodeError:
+    data = []
+
+if not isinstance(data, list):
+    data = []
+
+results = []
+successful = 0
+skipped = 0
+enabled_count = 0
+
+for item in data:
+    if not isinstance(item, dict):
+        continue
+
+    name = str(item.get("name", "unnamed")).strip() or "unnamed"
+    hook_type = str(item.get("type", "log")).strip() or "log"
+    enabled = bool(item.get("enabled", False))
+    url = str(item.get("url", "")).strip()
+
+    if not enabled:
+        results.append({"name": name, "type": hook_type, "result": "skipped-disabled"})
+        skipped += 1
+        continue
+
+    enabled_count += 1
+    result = "unknown"
+
+    payload = {
+        "event_utc": now_utc,
+        "event": event,
+        "runner_mode": runner_mode,
+        "exit_code": exit_code,
+        "message": message,
+        "hook_name": name,
+        "hook_type": hook_type,
+        "runner_status_doc": runner_status_doc,
+    }
+
+    if hook_type == "log":
+        with outbox_path.open("a", encoding="utf-8") as handle:
+            handle.write(json.dumps(payload, sort_keys=True) + "\n")
+        result = "logged"
+        successful += 1
+    elif hook_type == "webhook":
+        if enable_network and url:
+            try:
+                req = request.Request(
+                    url,
+                    data=json.dumps(payload).encode("utf-8"),
+                    headers={"content-type": "application/json"},
+                    method="POST",
+                )
+                with request.urlopen(req, timeout=10):
+                    pass
+                with outbox_path.open("a", encoding="utf-8") as handle:
+                    handle.write(json.dumps(payload | {"delivery": "sent"}, sort_keys=True) + "\n")
+                result = "sent"
+                successful += 1
+            except (error.URLError, TimeoutError, ValueError):
+                result = "failed-send"
+                skipped += 1
+        else:
+            result = "skipped-network-disabled"
+            skipped += 1
+    else:
+        result = "skipped-unknown-type"
+        skipped += 1
+
+    results.append({"name": name, "type": hook_type, "result": result})
+
+attempted_count = len(results)
+
+status_doc.write_text(
+    "# Estate Notification Status\n\n"
+    f"- last_event_utc: `{now_utc}`\n"
+    f"- last_event: `{event}`\n"
+    f"- runner_mode: `{runner_mode}`\n"
+    f"- exit_code: `{exit_code}`\n"
+    f"- config_path: `{config_path}`\n"
+    f"- outbox_path: `{outbox_path}`\n"
+    f"- enabled_hook_count: `{enabled_count}`\n"
+    f"- attempted_hook_count: `{attempted_count}`\n"
+    f"- successful_hook_count: `{successful}`\n"
+    f"- skipped_hook_count: `{skipped}`\n"
+    f"- network_notifications_enabled: `{'yes' if enable_network else 'no'}`\n"
+    "\n## Hook Results\n"
+    + (
+        "\n".join(
+            f"- {item['name']}: type={item['type']}, result={item['result']}"
+            for item in results
+        )
+        if results
+        else "- none"
+    )
+    + "\n",
+    encoding="utf-8",
+)
+PYCODE
 """,
         "bin/history-import.sh": """#!/usr/bin/env bash
 set -Eeuo pipefail
