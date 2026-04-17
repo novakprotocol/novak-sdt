@@ -29,8 +29,14 @@ def extended_required_floor_files() -> list[str]:
         "docs/estate/ESTATE_ARCHIVE_INDEX.md",
         "docs/estate/ESTATE_DELTA.md",
         "docs/estate/ESTATE_TRENDS.md",
+        "docs/estate/ESTATE_CADENCE.md",
+        "docs/estate/ESTATE_RUNNER_STATUS.md",
         "estate/estate_sources.json",
         "estate/archive/estate_refresh_history.ndjson",
+        "ops/systemd/estate-refresh.service",
+        "ops/systemd/estate-refresh.timer",
+        "bin/estate-refresh-runner.sh",
+        "bin/install-estate-refresh-timer.sh",
         "docs/history/FAILURE_PATTERNS.md",
         "docs/history/MISSED_OPPORTUNITIES.md",
         "docs/SDT_HISTORY_LANE.md",
@@ -93,6 +99,8 @@ nav:
       - Estate Archive Index: estate/ESTATE_ARCHIVE_INDEX.md
       - Estate Delta: estate/ESTATE_DELTA.md
       - Estate Trends: estate/ESTATE_TRENDS.md
+      - Estate Cadence: estate/ESTATE_CADENCE.md
+      - Estate Runner Status: estate/ESTATE_RUNNER_STATUS.md
       - Failure Patterns: history/FAILURE_PATTERNS.md
       - Missed Opportunities: history/MISSED_OPPORTUNITIES.md
 """,
@@ -266,6 +274,25 @@ No estate delta has been recorded yet.
 No estate trends have been recorded yet.
 """,
         "estate/archive/estate_refresh_history.ndjson": """
+""",
+        "docs/estate/ESTATE_CADENCE.md": """# Estate Cadence
+
+## Default operating guidance
+
+- manual refresh for one-off review or proof runs
+- daily timer for stable estates
+- hourly timer only for fast-changing lab or incident windows
+- run an extra refresh before and after high-risk changes
+
+## Runner path
+
+- `bash bin/estate-refresh-runner.sh`
+- `bash bin/install-estate-refresh-timer.sh --output-dir /tmp/estate-systemd`
+- review `docs/estate/ESTATE_REFRESH_STATUS.md` after each run
+""",
+        "docs/estate/ESTATE_RUNNER_STATUS.md": """# Estate Runner Status
+
+No estate runner status has been recorded yet.
 """,
 "docs/history/FAILURE_PATTERNS.md": """# Failure Patterns
 
@@ -2029,6 +2056,178 @@ EOF
 fi
 
 "${PYTHON_BIN}" "${REPO_DIR}/tools/build_estate_history_report.py" "${ARGS[@]}"
+""",
+        "ops/systemd/estate-refresh.service": """[Unit]
+Description=NOVAK SDT estate refresh
+Wants=network-online.target
+After=network-online.target
+
+[Service]
+Type=oneshot
+User=__RUN_AS_USER__
+WorkingDirectory=__REPO_DIR__
+Environment="ESTATE_DISCOVER_ROOTS=__ESTATE_DISCOVER_ROOTS__"
+Environment="ESTATE_MANIFEST_PATH=__REPO_DIR__/estate/estate_sources.json"
+ExecStart=/usr/bin/env bash __REPO_DIR__/bin/estate-refresh-runner.sh
+
+[Install]
+WantedBy=multi-user.target
+""",
+        "ops/systemd/estate-refresh.timer": """[Unit]
+Description=Run NOVAK SDT estate refresh on cadence
+
+[Timer]
+OnCalendar=__ON_CALENDAR__
+Persistent=true
+RandomizedDelaySec=60
+Unit=estate-refresh.service
+
+[Install]
+WantedBy=timers.target
+""",
+        "bin/estate-refresh-runner.sh": """#!/usr/bin/env bash
+set -Eeuo pipefail
+
+START_EPOCH="$(date +%s)"
+START_UTC="$(date -u '+%Y-%m-%d %H:%M:%S UTC')"
+REPO_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+STATUS_DOC="${REPO_DIR}/docs/estate/ESTATE_RUNNER_STATUS.md"
+RUNNER_MODE="${ESTATE_RUNNER_MODE:-manual}"
+MANIFEST_PATH="${ESTATE_MANIFEST_PATH:-${REPO_DIR}/estate/estate_sources.json}"
+DISCOVER_ROOTS="${ESTATE_DISCOVER_ROOTS:-}"
+ARGS=("$@")
+ARGS_DISPLAY="(none)"
+OUTCOME="running"
+FINISH_UTC="in-progress"
+ELAPSED_SECONDS="0"
+
+if [[ "${#ARGS[@]}" -gt 0 ]]; then
+  ARGS_DISPLAY="$(printf '%q ' "${ARGS[@]}")"
+  ARGS_DISPLAY="${ARGS_DISPLAY% }"
+fi
+
+write_status() {
+  mkdir -p "$(dirname "${STATUS_DOC}")"
+  cat > "${STATUS_DOC}" <<EOF
+# Estate Runner Status
+
+- last_run_started_utc: \`${START_UTC}\`
+- last_run_finished_utc: \`${FINISH_UTC}\`
+- outcome: \`${OUTCOME}\`
+- runner_mode: \`${RUNNER_MODE}\`
+- manifest_path: \`${MANIFEST_PATH}\`
+- discover_roots: \`${DISCOVER_ROOTS:-none}\`
+- argument_count: \`${#ARGS[@]}\`
+- elapsed_seconds: \`${ELAPSED_SECONDS}\`
+
+## Command
+- refresh_command: \`bash bin/estate-refresh.sh ${ARGS_DISPLAY}\`
+
+## Notes
+- run \`bash bin/install-estate-refresh-timer.sh --output-dir /tmp/estate-systemd\` to render timer and service files
+- review \`docs/estate/ESTATE_REFRESH_STATUS.md\` after each run
+EOF
+}
+
+finish() {
+  local rc="$1"
+  FINISH_UTC="$(date -u '+%Y-%m-%d %H:%M:%S UTC')"
+  ELAPSED_SECONDS="$(( $(date +%s) - START_EPOCH ))"
+  if [[ "${rc}" -eq 0 ]]; then
+    OUTCOME="success"
+  else
+    OUTCOME="failure"
+  fi
+  write_status
+}
+
+trap 'rc=$?; finish "${rc}"; exit "${rc}"' EXIT
+
+bash "${REPO_DIR}/bin/estate-refresh.sh" "${ARGS[@]}"
+""",
+        "bin/install-estate-refresh-timer.sh": """#!/usr/bin/env bash
+set -Eeuo pipefail
+
+REPO_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+SERVICE_TEMPLATE="${REPO_DIR}/ops/systemd/estate-refresh.service"
+TIMER_TEMPLATE="${REPO_DIR}/ops/systemd/estate-refresh.timer"
+OUTPUT_DIR="${REPO_DIR}/ops/systemd/rendered"
+ON_CALENDAR="${ESTATE_ON_CALENDAR:-daily}"
+RUN_AS_USER="${ESTATE_RUN_AS_USER:-root}"
+DISCOVER_ROOTS="${ESTATE_DISCOVER_ROOTS:-}"
+INSTALL_MODE="no"
+
+while [[ "$#" -gt 0 ]]; do
+  case "$1" in
+    --output-dir)
+      OUTPUT_DIR="$2"
+      shift 2
+      ;;
+    --on-calendar)
+      ON_CALENDAR="$2"
+      shift 2
+      ;;
+    --run-as-user)
+      RUN_AS_USER="$2"
+      shift 2
+      ;;
+    --discover-roots)
+      DISCOVER_ROOTS="$2"
+      shift 2
+      ;;
+    --install)
+      INSTALL_MODE="yes"
+      shift
+      ;;
+    *)
+      echo "ERROR: unknown argument: $1" >&2
+      exit 2
+      ;;
+  esac
+done
+
+mkdir -p "${OUTPUT_DIR}"
+
+python3 - "${SERVICE_TEMPLATE}" "${TIMER_TEMPLATE}" "${OUTPUT_DIR}" "${REPO_DIR}" "${RUN_AS_USER}" "${DISCOVER_ROOTS}" "${ON_CALENDAR}" <<'INNERPY'
+from pathlib import Path
+import sys
+
+service_template = Path(sys.argv[1]).read_text(encoding="utf-8")
+timer_template = Path(sys.argv[2]).read_text(encoding="utf-8")
+output_dir = Path(sys.argv[3])
+repo_dir = sys.argv[4]
+run_as_user = sys.argv[5]
+discover_roots = sys.argv[6]
+on_calendar = sys.argv[7]
+
+replacements = {
+    "__REPO_DIR__": repo_dir,
+    "__RUN_AS_USER__": run_as_user,
+    "__ESTATE_DISCOVER_ROOTS__": discover_roots,
+    "__ON_CALENDAR__": on_calendar,
+}
+
+service_text = service_template
+timer_text = timer_template
+
+for key, value in replacements.items():
+    service_text = service_text.replace(key, value)
+    timer_text = timer_text.replace(key, value)
+
+(output_dir / "estate-refresh.service").write_text(service_text, encoding="utf-8")
+(output_dir / "estate-refresh.timer").write_text(timer_text, encoding="utf-8")
+print(f"WROTE {output_dir / 'estate-refresh.service'}")
+print(f"WROTE {output_dir / 'estate-refresh.timer'}")
+INNERPY
+
+if [[ "${INSTALL_MODE}" == "yes" ]]; then
+  cp "${OUTPUT_DIR}/estate-refresh.service" /etc/systemd/system/estate-refresh.service
+  cp "${OUTPUT_DIR}/estate-refresh.timer" /etc/systemd/system/estate-refresh.timer
+  systemctl daemon-reload
+  echo "INSTALLED /etc/systemd/system/estate-refresh.service"
+  echo "INSTALLED /etc/systemd/system/estate-refresh.timer"
+  echo "NEXT: systemctl enable --now estate-refresh.timer"
+fi
 """,
         "bin/history-import.sh": """#!/usr/bin/env bash
 set -Eeuo pipefail
