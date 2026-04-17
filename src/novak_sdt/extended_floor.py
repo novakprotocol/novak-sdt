@@ -18,6 +18,8 @@ def extended_required_floor_files() -> list[str]:
         "docs/history/HISTORY_SIGNALS.md",
         "docs/history/HISTORY_OPERATOR_PAIN.md",
         "docs/history/HISTORY_PRIORITY_QUEUE.md",
+        "docs/history/HISTORY_REMEDIATION.md",
+        "docs/history/HISTORY_ACTION_QUEUE.md",
         "docs/history/FAILURE_PATTERNS.md",
         "docs/history/MISSED_OPPORTUNITIES.md",
         "docs/SDT_HISTORY_LANE.md",
@@ -66,6 +68,8 @@ nav:
       - History Signals: history/HISTORY_SIGNALS.md
       - History Operator Pain: history/HISTORY_OPERATOR_PAIN.md
       - History Priority Queue: history/HISTORY_PRIORITY_QUEUE.md
+      - History Remediation: history/HISTORY_REMEDIATION.md
+      - History Action Queue: history/HISTORY_ACTION_QUEUE.md
       - Failure Patterns: history/FAILURE_PATTERNS.md
       - Missed Opportunities: history/MISSED_OPPORTUNITIES.md
 """,
@@ -191,6 +195,14 @@ No operator pain summary has been recorded yet.
         "docs/history/HISTORY_PRIORITY_QUEUE.md": """# History Priority Queue
 
 No history priority queue has been recorded yet.
+""",
+        "docs/history/HISTORY_REMEDIATION.md": """# History Remediation
+
+No history remediation guidance has been recorded yet.
+""",
+        "docs/history/HISTORY_ACTION_QUEUE.md": """# History Action Queue
+
+No history action queue has been recorded yet.
 """,
 "docs/history/FAILURE_PATTERNS.md": """# Failure Patterns
 
@@ -351,6 +363,26 @@ SEVERITY_WEIGHTS = {
     "python-indentation": 6,
 }
 
+FAILURE_THRESHOLDS = [
+    (6, "critical"),
+    (4, "high"),
+    (2, "medium"),
+    (0, "low"),
+]
+
+WEIGHTED_SEVERITY_THRESHOLDS = [
+    (18, "critical"),
+    (12, "high"),
+    (6, "medium"),
+    (0, "low"),
+]
+
+PRIORITY_THRESHOLDS = [
+    (12.0, "urgent"),
+    (7.0, "elevated"),
+    (0.0, "normal"),
+]
+
 
 def classify_failure(line: str) -> str:
     lowered = line.lower()
@@ -414,6 +446,58 @@ def severity_weight_for_class(name: str) -> int:
     return int(SEVERITY_WEIGHTS.get(name, 1))
 
 
+def label_from_threshold(value: int | float, thresholds: list[tuple[int | float, str]]) -> str:
+    for cutoff, label in thresholds:
+        if value >= cutoff:
+            return label
+    return thresholds[-1][1]
+
+
+def priority_bucket(score: float) -> str:
+    return label_from_threshold(score, PRIORITY_THRESHOLDS)
+
+
+def approval_gate(
+    failure_label: str,
+    weighted_severity_label: str,
+    priority_label: str,
+) -> str:
+    if failure_label in {"high", "critical"}:
+        return "block"
+    if weighted_severity_label in {"high", "critical"}:
+        return "block"
+    if priority_label == "urgent":
+        return "block"
+    if failure_label == "medium":
+        return "review"
+    if weighted_severity_label == "medium":
+        return "review"
+    if priority_label == "elevated":
+        return "review"
+    return "proceed"
+
+
+def operator_mode_for_gate(gate: str) -> str:
+    return {
+        "block": "immediate-review",
+        "review": "review-soon",
+        "proceed": "continue",
+    }.get(gate, "continue")
+
+
+def recommendation_for_class(name: str) -> str:
+    return {
+        "generic-error": "inspect the failing command path, capture full stderr/stdout, and split generic errors into tighter classes",
+        "mkdocs": "run mkdocs build locally, validate nav/config, and confirm generated docs still render cleanly",
+        "python-traceback": "rerun the failing Python path with full traceback capture and isolate the exact exception origin",
+        "python-syntax": "run py_compile and a formatter or linter across the touched Python files before retry",
+        "python-indentation": "run py_compile and normalize indentation before rerunning the affected script",
+        "permission": "check ownership, file modes, sudo path, and whether the action should run under a different user",
+        "missing-command": "verify package installation, binary presence, and PATH before retrying the action",
+        "other": "inspect the raw log lines and classify the issue more precisely before retrying",
+    }.get(name, "inspect the raw log lines and classify the issue more precisely before retrying")
+
+
 def decayed_priority_score(name: str, records: list[dict]) -> float:
     score = 0.0
     for age, record in enumerate(reversed(records)):
@@ -423,6 +507,17 @@ def decayed_priority_score(name: str, records: list[dict]) -> float:
             continue
         score += float(count * severity_weight_for_class(name)) * (0.85 ** age)
     return score
+
+
+def unique_preserve_order(items: list[str]) -> list[str]:
+    seen: set[str] = set()
+    output: list[str] = []
+    for item in items:
+        if item in seen:
+            continue
+        seen.add(item)
+        output.append(item)
+    return output
 
 
 def main() -> int:
@@ -536,6 +631,8 @@ def main() -> int:
     history_signals = history / "HISTORY_SIGNALS.md"
     history_operator_pain = history / "HISTORY_OPERATOR_PAIN.md"
     history_priority_queue = history / "HISTORY_PRIORITY_QUEUE.md"
+    history_remediation = history / "HISTORY_REMEDIATION.md"
+    history_action_queue = history / "HISTORY_ACTION_QUEUE.md"
     failure_patterns = history / "FAILURE_PATTERNS.md"
     missed_opportunities = history / "MISSED_OPPORTUNITIES.md"
 
@@ -648,7 +745,7 @@ def main() -> int:
 
     class_signal_lines: list[str] = []
     pain_rows: list[tuple[float, int, int, str, str]] = []
-    priority_rows: list[tuple[float, int, str, str]] = []
+    priority_rows: list[tuple[float, int, str, str, str]] = []
 
     for key in class_keys:
         latest_value = int(latest_classes.get(key, 0) or 0)
@@ -676,24 +773,55 @@ def main() -> int:
             previous_window_class_avg,
         )
 
+        weight = severity_weight_for_class(key)
+        decay_score = decayed_priority_score(key, records)
+        priority_label = priority_bucket(decay_score)
+        recommendation = recommendation_for_class(key)
+
         class_signal_lines.append(
-            f"- {key}: latest={latest_value}, previous={previous_value if previous_value is not None else 'none'}, delta={delta_value if delta_value is not None else 'n/a'}, previous_signal={previous_signal}, recent_average={fmt_avg(recent_avg)}, rolling_signal={rolling_signal}, current_window_avg={fmt_avg(current_window_class_avg)}, previous_window_avg={fmt_avg(previous_window_class_avg)}, window_signal={window_signal}"
+            f"- {key}: latest={latest_value}, previous={previous_value if previous_value is not None else 'none'}, delta={delta_value if delta_value is not None else 'n/a'}, previous_signal={previous_signal}, recent_average={fmt_avg(recent_avg)}, rolling_signal={rolling_signal}, current_window_avg={fmt_avg(current_window_class_avg)}, previous_window_avg={fmt_avg(previous_window_class_avg)}, window_signal={window_signal}, priority_bucket={priority_label}"
         )
 
         imports_seen = int(trend_map[key]["imports_seen"]) if key in trend_map else 0
         total_lines_for_key = int(trend_map[key]["total_lines"]) if key in trend_map else 0
-        weight = severity_weight_for_class(key)
-        decay_score = decayed_priority_score(key, records)
 
         pain_line = (
-            f"- {key}: total_lines={total_lines_for_key}, imports_seen={imports_seen}, severity_weight={weight}, latest_count={latest_value}, previous_count={previous_value if previous_value is not None else 'none'}, recent_average={fmt_avg(recent_avg)}, rolling_signal={rolling_signal}, decay_priority_score={decay_score:.2f}"
+            f"- {key}: total_lines={total_lines_for_key}, imports_seen={imports_seen}, severity_weight={weight}, latest_count={latest_value}, previous_count={previous_value if previous_value is not None else 'none'}, recent_average={fmt_avg(recent_avg)}, rolling_signal={rolling_signal}, decay_priority_score={decay_score:.2f}, recommendation={recommendation}"
         )
         pain_rows.append((decay_score, total_lines_for_key, imports_seen, key, pain_line))
 
         priority_line = (
-            f"- {key}: decay_priority_score={decay_score:.2f}, severity_weight={weight}, total_lines={total_lines_for_key}, imports_seen={imports_seen}, current_window_avg={fmt_avg(current_window_class_avg)}, previous_window_avg={fmt_avg(previous_window_class_avg)}, window_signal={window_signal}"
+            f"- {key}: decay_priority_score={decay_score:.2f}, priority_bucket={priority_label}, severity_weight={weight}, total_lines={total_lines_for_key}, imports_seen={imports_seen}, current_window_avg={fmt_avg(current_window_class_avg)}, previous_window_avg={fmt_avg(previous_window_class_avg)}, window_signal={window_signal}, recommendation={recommendation}"
         )
-        priority_rows.append((decay_score, weight, key, priority_line))
+        priority_rows.append((decay_score, weight, key, priority_line, recommendation))
+
+    sorted_pain_lines = [
+        line for _, _, _, _, line in sorted(
+            pain_rows,
+            key=lambda item: (-item[0], -item[1], -item[2], item[3]),
+        )
+    ]
+
+    sorted_priority_details = sorted(
+        priority_rows,
+        key=lambda item: (-item[0], -item[1], item[2]),
+    )
+    sorted_priority_lines = [line for _, _, _, line, _ in sorted_priority_details]
+
+    highest_priority_score = float(sorted_priority_details[0][0]) if sorted_priority_details else 0.0
+    highest_priority_bucket = priority_bucket(highest_priority_score)
+
+    failure_threshold_latest = label_from_threshold(latest_failure_lines_count, FAILURE_THRESHOLDS)
+    weighted_severity_threshold_latest = label_from_threshold(
+        latest_weighted_severity,
+        WEIGHTED_SEVERITY_THRESHOLDS,
+    )
+    approval_state = approval_gate(
+        failure_threshold_latest,
+        weighted_severity_threshold_latest,
+        highest_priority_bucket,
+    )
+    operator_mode = operator_mode_for_gate(approval_state)
 
     history_signals.write_text(
         "# History Signals\\n\\n"
@@ -709,6 +837,11 @@ def main() -> int:
         f"- weighted_severity_signal_vs_previous: `{compare_signal(latest_weighted_severity, previous_weighted_severity)}`\\n"
         f"- weighted_severity_signal_vs_recent_average: `{compare_to_average(latest_weighted_severity, recent_severity_avg)}`\\n"
         f"- weighted_severity_window_signal_last3_vs_previous3: `{compare_to_average(current_window_severity_avg if current_window_severity_avg is not None else 0.0, previous_window_severity_avg)}`\\n"
+        f"- failure_line_threshold_latest: `{failure_threshold_latest}`\\n"
+        f"- weighted_severity_threshold_latest: `{weighted_severity_threshold_latest}`\\n"
+        f"- highest_priority_bucket: `{highest_priority_bucket}`\\n"
+        f"- approval_gate: `{approval_state}`\\n"
+        f"- recommended_operator_mode: `{operator_mode}`\\n"
         f"- latest_failure_lines: `{latest_failure_lines_count}`\\n"
         f"- previous_failure_lines: `{previous_failure_lines_count if previous_failure_lines_count is not None else 'none'}`\\n"
         f"- recent_average_failure_lines: `{fmt_avg(recent_failure_avg)}`\\n"
@@ -734,17 +867,11 @@ def main() -> int:
         encoding="utf-8",
     )
 
-    sorted_pain_lines = [
-        line for _, _, _, _, line in sorted(
-            pain_rows,
-            key=lambda item: (-item[0], -item[1], -item[2], item[3]),
-        )
-    ]
-
     history_operator_pain.write_text(
         "# History Operator Pain\\n\\n"
         f"- archived_attempts_total: `{attempt_count}`\\n"
         f"- ranked_class_count: `{len(sorted_pain_lines)}`\\n"
+        f"- approval_gate: `{approval_state}`\\n"
         "\\n## Top Operator Pain Classes\\n"
         + (
             "\\n".join(sorted_pain_lines[:10])
@@ -764,23 +891,69 @@ def main() -> int:
         encoding="utf-8",
     )
 
-    sorted_priority_lines = [
-        line for _, _, _, line in sorted(
-            priority_rows,
-            key=lambda item: (-item[0], -item[1], item[2]),
-        )
-    ]
-
     history_priority_queue.write_text(
         "# History Priority Queue\\n\\n"
         f"- archived_attempts_total: `{attempt_count}`\\n"
         f"- ranked_class_count: `{len(sorted_priority_lines)}`\\n"
+        f"- highest_priority_bucket: `{highest_priority_bucket}`\\n"
         "\\n## Priority Queue\\n"
         + (
             "\\n".join(sorted_priority_lines[:10])
             if sorted_priority_lines
             else "- none"
         )
+        + "\\n",
+        encoding="utf-8",
+    )
+
+    remediation_items: list[str] = []
+    if approval_state == "block":
+        remediation_items.append("pause promotion or merge, and require operator review before the next attempt")
+    elif approval_state == "review":
+        remediation_items.append("review the latest failures before the next retry and confirm the remediation owner")
+    else:
+        remediation_items.append("continue with caution and keep capturing evidence on the next run")
+
+    remediation_items.append(
+        f"treat the current weighted severity as `{weighted_severity_threshold_latest}` and the top priority bucket as `{highest_priority_bucket}`"
+    )
+
+    remediation_items.extend(
+        recommendation
+        for _, _, _, _, recommendation in sorted_priority_details[:5]
+    )
+
+    unique_remediation_items = unique_preserve_order(remediation_items)
+
+    history_remediation.write_text(
+        "# History Remediation\\n\\n"
+        f"- archived_attempts_total: `{attempt_count}`\\n"
+        f"- approval_gate: `{approval_state}`\\n"
+        f"- recommended_operator_mode: `{operator_mode}`\\n"
+        f"- weighted_severity_threshold_latest: `{weighted_severity_threshold_latest}`\\n"
+        f"- highest_priority_bucket: `{highest_priority_bucket}`\\n"
+        "\\n## Immediate Recommendations\\n"
+        + "\\n".join(f"- {item}" for item in unique_remediation_items)
+        + "\\n",
+        encoding="utf-8",
+    )
+
+    action_queue_lines: list[str] = []
+    for index, (score, weight, key, _, recommendation) in enumerate(sorted_priority_details[:5], start=1):
+        action_queue_lines.append(
+            f"- {index}. [{approval_state}] {key} | priority_bucket={priority_bucket(score)} | decay_priority_score={score:.2f} | severity_weight={weight} | action={recommendation}"
+        )
+
+    if not action_queue_lines:
+        action_queue_lines = ["- none"]
+
+    history_action_queue.write_text(
+        "# History Action Queue\\n\\n"
+        f"- archived_attempts_total: `{attempt_count}`\\n"
+        f"- approval_gate: `{approval_state}`\\n"
+        f"- recommended_operator_mode: `{operator_mode}`\\n"
+        "\\n## Recommended Next Moves\\n"
+        + "\\n".join(action_queue_lines)
         + "\\n",
         encoding="utf-8",
     )
@@ -821,6 +994,8 @@ def main() -> int:
     print(f"UPDATED {history_signals}")
     print(f"UPDATED {history_operator_pain}")
     print(f"UPDATED {history_priority_queue}")
+    print(f"UPDATED {history_remediation}")
+    print(f"UPDATED {history_action_queue}")
     print(f"UPDATED {failure_patterns}")
     print(f"UPDATED {missed_opportunities}")
     return 0
