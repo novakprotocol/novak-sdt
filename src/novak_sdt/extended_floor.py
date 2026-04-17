@@ -20,13 +20,18 @@ def extended_required_floor_files() -> list[str]:
         "docs/history/HISTORY_PRIORITY_QUEUE.md",
         "docs/history/HISTORY_REMEDIATION.md",
         "docs/history/HISTORY_ACTION_QUEUE.md",
+        "docs/estate/ESTATE_HISTORY_SUMMARY.md",
+        "docs/estate/ESTATE_PRIORITY_QUEUE.md",
+        "docs/estate/ESTATE_ACTION_QUEUE.md",
         "docs/history/FAILURE_PATTERNS.md",
         "docs/history/MISSED_OPPORTUNITIES.md",
         "docs/SDT_HISTORY_LANE.md",
         "tools/render_project_docs_status.py",
         "tools/render_freshness_gauge.py",
         "tools/archive_history_log.py",
+        "tools/build_estate_history_report.py",
         "bin/history-import.sh",
+        "bin/estate-aggregate.sh",
         ".github/workflows/pages.yml",
     ]
 
@@ -70,6 +75,9 @@ nav:
       - History Priority Queue: history/HISTORY_PRIORITY_QUEUE.md
       - History Remediation: history/HISTORY_REMEDIATION.md
       - History Action Queue: history/HISTORY_ACTION_QUEUE.md
+      - Estate History Summary: estate/ESTATE_HISTORY_SUMMARY.md
+      - Estate Priority Queue: estate/ESTATE_PRIORITY_QUEUE.md
+      - Estate Action Queue: estate/ESTATE_ACTION_QUEUE.md
       - Failure Patterns: history/FAILURE_PATTERNS.md
       - Missed Opportunities: history/MISSED_OPPORTUNITIES.md
 """,
@@ -203,6 +211,18 @@ No history remediation guidance has been recorded yet.
         "docs/history/HISTORY_ACTION_QUEUE.md": """# History Action Queue
 
 No history action queue has been recorded yet.
+""",
+        "docs/estate/ESTATE_HISTORY_SUMMARY.md": """# Estate History Summary
+
+No estate history summary has been recorded yet.
+""",
+        "docs/estate/ESTATE_PRIORITY_QUEUE.md": """# Estate Priority Queue
+
+No estate priority queue has been recorded yet.
+""",
+        "docs/estate/ESTATE_ACTION_QUEUE.md": """# Estate Action Queue
+
+No estate action queue has been recorded yet.
 """,
 "docs/history/FAILURE_PATTERNS.md": """# Failure Patterns
 
@@ -1003,6 +1023,340 @@ def main() -> int:
 
 if __name__ == "__main__":
     raise SystemExit(main())
+""",
+        "tools/build_estate_history_report.py": """#!/usr/bin/env python3
+from __future__ import annotations
+
+import json
+import sys
+from collections import Counter
+from pathlib import Path
+
+
+SEVERITY_WEIGHTS = {
+    "other": 1,
+    "generic-error": 2,
+    "mkdocs": 3,
+    "python-traceback": 4,
+    "permission": 5,
+    "missing-command": 5,
+    "python-syntax": 6,
+    "python-indentation": 6,
+}
+
+FAILURE_THRESHOLDS = [
+    (6, "critical"),
+    (4, "high"),
+    (2, "medium"),
+    (0, "low"),
+]
+
+WEIGHTED_SEVERITY_THRESHOLDS = [
+    (18, "critical"),
+    (12, "high"),
+    (6, "medium"),
+    (0, "low"),
+]
+
+PRIORITY_THRESHOLDS = [
+    (12.0, "urgent"),
+    (7.0, "elevated"),
+    (0.0, "normal"),
+]
+
+
+def label_from_threshold(value: int | float, thresholds: list[tuple[int | float, str]]) -> str:
+    for cutoff, label in thresholds:
+        if value >= cutoff:
+            return label
+    return thresholds[-1][1]
+
+
+def priority_bucket(score: float) -> str:
+    return label_from_threshold(score, PRIORITY_THRESHOLDS)
+
+
+def approval_gate(
+    failure_label: str,
+    weighted_severity_label: str,
+    priority_label: str,
+) -> str:
+    if failure_label in {"high", "critical"}:
+        return "block"
+    if weighted_severity_label in {"high", "critical"}:
+        return "block"
+    if priority_label == "urgent":
+        return "block"
+    if failure_label == "medium":
+        return "review"
+    if weighted_severity_label == "medium":
+        return "review"
+    if priority_label == "elevated":
+        return "review"
+    return "proceed"
+
+
+def operator_mode_for_gate(gate: str) -> str:
+    return {
+        "block": "immediate-review",
+        "review": "review-soon",
+        "proceed": "continue",
+    }.get(gate, "continue")
+
+
+def severity_weight_for_class(name: str) -> int:
+    return int(SEVERITY_WEIGHTS.get(name, 1))
+
+
+def recommendation_for_class(name: str) -> str:
+    return {
+        "generic-error": "inspect the failing command path, capture full stderr/stdout, and split generic errors into tighter classes",
+        "mkdocs": "run mkdocs build locally, validate nav/config, and confirm generated docs still render cleanly",
+        "python-traceback": "rerun the failing Python path with full traceback capture and isolate the exact exception origin",
+        "python-syntax": "run py_compile and a formatter or linter across the touched Python files before retry",
+        "python-indentation": "run py_compile and normalize indentation before rerunning the affected script",
+        "permission": "check ownership, file modes, sudo path, and whether the action should run under a different user",
+        "missing-command": "verify package installation, binary presence, and PATH before retrying the action",
+        "other": "inspect the raw log lines and classify the issue more precisely before retrying",
+    }.get(name, "inspect the raw log lines and classify the issue more precisely before retrying")
+
+
+def decayed_priority_score(name: str, records: list[dict]) -> float:
+    score = 0.0
+    for age, record in enumerate(reversed(records)):
+        classes = record.get("failure_classes", {}) or {}
+        count = int(classes.get(name, 0) or 0)
+        if count <= 0:
+            continue
+        score += float(count * severity_weight_for_class(name)) * (0.85 ** age)
+    return score
+
+
+def resolve_input(arg: str) -> tuple[str, Path]:
+    if "=" in arg:
+        label, raw = arg.split("=", 1)
+    else:
+        label, raw = "", arg
+
+    source = Path(raw).resolve()
+    if source.is_dir():
+        ndjson = source / "docs" / "history" / "ATTEMPTS.ndjson"
+        derived_label = source.name
+    else:
+        ndjson = source
+        derived_label = source.stem
+
+    final_label = label.strip() or derived_label
+    return final_label, ndjson
+
+
+def load_records(path: Path) -> list[dict]:
+    records: list[dict] = []
+    for raw_line in path.read_text(encoding="utf-8").splitlines():
+        if not raw_line.strip():
+            continue
+        try:
+            records.append(json.loads(raw_line))
+        except json.JSONDecodeError:
+            continue
+    return records
+
+
+def pick_top_class(classes: dict[str, int]) -> str:
+    if not classes:
+        return "none"
+    return max(
+        classes.items(),
+        key=lambda kv: (
+            severity_weight_for_class(str(kv[0])) * int(kv[1]),
+            int(kv[1]),
+            str(kv[0]),
+        ),
+    )[0]
+
+
+def main() -> int:
+    if len(sys.argv) < 2:
+        print("usage: build_estate_history_report.py <label=repo-path|repo-path|ndjson> [...]", file=sys.stderr)
+        return 2
+
+    repo = Path(__file__).resolve().parent.parent
+    estate_dir = repo / "docs" / "estate"
+    estate_dir.mkdir(parents=True, exist_ok=True)
+
+    estate_history_summary = estate_dir / "ESTATE_HISTORY_SUMMARY.md"
+    estate_priority_queue = estate_dir / "ESTATE_PRIORITY_QUEUE.md"
+    estate_action_queue = estate_dir / "ESTATE_ACTION_QUEUE.md"
+
+    repo_rows: list[dict] = []
+    latest_classes_counter = Counter()
+
+    for arg in sys.argv[1:]:
+        label, ndjson_path = resolve_input(arg)
+        if not ndjson_path.is_file():
+            print(f"SKIP missing input: {label} -> {ndjson_path}")
+            continue
+
+        records = load_records(ndjson_path)
+        if not records:
+            print(f"SKIP empty input: {label} -> {ndjson_path}")
+            continue
+
+        latest = records[-1]
+        latest_classes = {
+            str(k): int(v)
+            for k, v in (latest.get("failure_classes", {}) or {}).items()
+        }
+
+        latest_failure_lines = int(latest.get("failure_line_count", 0))
+        latest_weighted_severity = int(latest.get("weighted_severity_total", 0))
+        latest_missed = int(latest.get("missed_opportunity_count", 0))
+        top_class = pick_top_class(latest_classes)
+
+        class_scores = {
+            cls: decayed_priority_score(cls, records)
+            for cls in latest_classes.keys()
+        }
+        highest_class_score = max(class_scores.values()) if class_scores else 0.0
+        highest_priority_bucket = priority_bucket(highest_class_score)
+
+        failure_threshold_latest = label_from_threshold(latest_failure_lines, FAILURE_THRESHOLDS)
+        weighted_severity_threshold_latest = label_from_threshold(
+            latest_weighted_severity,
+            WEIGHTED_SEVERITY_THRESHOLDS,
+        )
+        gate = approval_gate(
+            failure_threshold_latest,
+            weighted_severity_threshold_latest,
+            highest_priority_bucket,
+        )
+        operator_mode = operator_mode_for_gate(gate)
+        action = recommendation_for_class(top_class) if top_class != "none" else "review the latest repo state before the next attempt"
+
+        repo_priority_score = float(latest_weighted_severity) + highest_class_score + float(latest_failure_lines)
+
+        latest_classes_counter.update(latest_classes)
+
+        repo_rows.append(
+            {
+                "label": label,
+                "ndjson_path": ndjson_path,
+                "attempts": len(records),
+                "latest_source_name": str(latest.get("source_name", "unknown")),
+                "latest_failure_lines": latest_failure_lines,
+                "latest_weighted_severity": latest_weighted_severity,
+                "latest_missed": latest_missed,
+                "failure_threshold_latest": failure_threshold_latest,
+                "weighted_severity_threshold_latest": weighted_severity_threshold_latest,
+                "highest_priority_bucket": highest_priority_bucket,
+                "approval_gate": gate,
+                "operator_mode": operator_mode,
+                "top_class": top_class,
+                "action": action,
+                "repo_priority_score": repo_priority_score,
+            }
+        )
+
+    repo_rows.sort(
+        key=lambda item: (
+            -float(item["repo_priority_score"]),
+            str(item["label"]),
+        )
+    )
+
+    block_count = sum(1 for row in repo_rows if row["approval_gate"] == "block")
+    review_count = sum(1 for row in repo_rows if row["approval_gate"] == "review")
+    proceed_count = sum(1 for row in repo_rows if row["approval_gate"] == "proceed")
+    total_attempts = sum(int(row["attempts"]) for row in repo_rows)
+    total_latest_weighted_severity = sum(int(row["latest_weighted_severity"]) for row in repo_rows)
+    estate_highest_bucket = repo_rows[0]["highest_priority_bucket"] if repo_rows else "normal"
+
+    estate_history_summary.write_text(
+        "# Estate History Summary\\n\\n"
+        f"- estate_source_count: `{len(repo_rows)}`\\n"
+        f"- total_archived_attempts_across_sources: `{total_attempts}`\\n"
+        f"- sources_in_block: `{block_count}`\\n"
+        f"- sources_in_review: `{review_count}`\\n"
+        f"- sources_in_proceed: `{proceed_count}`\\n"
+        f"- highest_priority_bucket_across_estate: `{estate_highest_bucket}`\\n"
+        f"- total_latest_weighted_severity_across_sources: `{total_latest_weighted_severity}`\\n"
+        "\\n## Per-Repo Latest State\\n"
+        + (
+            "\\n".join(
+                f"- {row['label']}: attempts={row['attempts']}, latest_source={row['latest_source_name']}, gate={row['approval_gate']}, operator_mode={row['operator_mode']}, priority_bucket={row['highest_priority_bucket']}, latest_failure_lines={row['latest_failure_lines']}, latest_weighted_severity={row['latest_weighted_severity']}, top_class={row['top_class']}"
+                for row in repo_rows
+            )
+            if repo_rows
+            else "- none"
+        )
+        + "\\n\\n## Latest Failure Classes Across Estate\\n"
+        + (
+            "\\n".join(
+                f"- {key}: {value}"
+                for key, value in sorted(latest_classes_counter.items())
+            )
+            if latest_classes_counter
+            else "- none"
+        )
+        + "\\n",
+        encoding="utf-8",
+    )
+
+    estate_priority_queue.write_text(
+        "# Estate Priority Queue\\n\\n"
+        f"- ranked_source_count: `{len(repo_rows)}`\\n"
+        f"- highest_priority_bucket_across_estate: `{estate_highest_bucket}`\\n"
+        "\\n## Repos Requiring Attention\\n"
+        + (
+            "\\n".join(
+                f"- {row['label']}: repo_priority_score={row['repo_priority_score']:.2f}, gate={row['approval_gate']}, operator_mode={row['operator_mode']}, priority_bucket={row['highest_priority_bucket']}, latest_weighted_severity={row['latest_weighted_severity']}, latest_failure_lines={row['latest_failure_lines']}, top_class={row['top_class']}"
+                for row in repo_rows
+            )
+            if repo_rows
+            else "- none"
+        )
+        + "\\n",
+        encoding="utf-8",
+    )
+
+    estate_action_queue.write_text(
+        "# Estate Action Queue\\n\\n"
+        f"- ranked_source_count: `{len(repo_rows)}`\\n"
+        f"- highest_priority_bucket_across_estate: `{estate_highest_bucket}`\\n"
+        "\\n## Recommended Next Moves\\n"
+        + (
+            "\\n".join(
+                f"- {idx}. [{row['approval_gate']}] {row['label']} | priority_bucket={row['highest_priority_bucket']} | repo_priority_score={row['repo_priority_score']:.2f} | top_class={row['top_class']} | action={row['action']}"
+                for idx, row in enumerate(repo_rows, start=1)
+            )
+            if repo_rows
+            else "- none"
+        )
+        + "\\n",
+        encoding="utf-8",
+    )
+
+    print(f"UPDATED {estate_history_summary}")
+    print(f"UPDATED {estate_priority_queue}")
+    print(f"UPDATED {estate_action_queue}")
+    return 0
+
+
+if __name__ == "__main__":
+    raise SystemExit(main())
+""",
+        "bin/estate-aggregate.sh": """#!/usr/bin/env bash
+set -Eeuo pipefail
+
+REPO_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+PYTHON_BIN="${PYTHON_BIN:-python3}"
+
+if [[ "$#" -lt 1 ]]; then
+  echo "usage: estate-aggregate.sh <label=repo-path|repo-path|ndjson> [...]" >&2
+  exit 2
+fi
+
+"${PYTHON_BIN}" "${REPO_DIR}/tools/build_estate_history_report.py" "$@"
 """,
         "bin/history-import.sh": """#!/usr/bin/env bash
 set -Eeuo pipefail
