@@ -50,8 +50,24 @@ def git_init(path: Path) -> None:
 def maybe_git_commit(path: Path, message: str, enabled: bool) -> None:
     if not enabled:
         return
-    subprocess.run(["git", "add", "."], cwd=path, check=True)
-    subprocess.run(["git", "commit", "-m", message], cwd=path, check=True)
+
+    git_dir = path / '.git'
+    if not git_dir.exists():
+        subprocess.run(['git', 'init'], cwd=path, check=True)
+
+    subprocess.run(['git', 'add', '.'], cwd=path, check=True)
+
+    diff_check = subprocess.run(
+        ['git', 'diff', '--cached', '--quiet'],
+        cwd=path,
+        check=False,
+    )
+    if diff_check.returncode == 0:
+        return
+    if diff_check.returncode != 1:
+        raise subprocess.CalledProcessError(diff_check.returncode, diff_check.args)
+
+    subprocess.run(['git', 'commit', '-m', message], cwd=path, check=True)
 
 
 def core_templates() -> dict[str, str]:
