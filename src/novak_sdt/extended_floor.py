@@ -24,6 +24,9 @@ def extended_required_floor_files() -> list[str]:
         "docs/estate/ESTATE_PRIORITY_QUEUE.md",
         "docs/estate/ESTATE_ACTION_QUEUE.md",
         "docs/estate/ESTATE_INGEST_SUMMARY.md",
+        "docs/estate/ESTATE_CATALOG.md",
+        "docs/estate/ESTATE_REFRESH_STATUS.md",
+        "estate/estate_sources.json",
         "docs/history/FAILURE_PATTERNS.md",
         "docs/history/MISSED_OPPORTUNITIES.md",
         "docs/SDT_HISTORY_LANE.md",
@@ -33,6 +36,7 @@ def extended_required_floor_files() -> list[str]:
         "tools/build_estate_history_report.py",
         "bin/history-import.sh",
         "bin/estate-aggregate.sh",
+        "bin/estate-refresh.sh",
         ".github/workflows/pages.yml",
     ]
 
@@ -80,6 +84,8 @@ nav:
       - Estate Priority Queue: estate/ESTATE_PRIORITY_QUEUE.md
       - Estate Action Queue: estate/ESTATE_ACTION_QUEUE.md
       - Estate Ingest Summary: estate/ESTATE_INGEST_SUMMARY.md
+      - Estate Catalog: estate/ESTATE_CATALOG.md
+      - Estate Refresh Status: estate/ESTATE_REFRESH_STATUS.md
       - Failure Patterns: history/FAILURE_PATTERNS.md
       - Missed Opportunities: history/MISSED_OPPORTUNITIES.md
 """,
@@ -229,6 +235,16 @@ No estate action queue has been recorded yet.
         "docs/estate/ESTATE_INGEST_SUMMARY.md": """# Estate Ingest Summary
 
 No estate ingest summary has been recorded yet.
+""",
+        "docs/estate/ESTATE_CATALOG.md": """# Estate Catalog
+
+No estate catalog has been recorded yet.
+""",
+        "docs/estate/ESTATE_REFRESH_STATUS.md": """# Estate Refresh Status
+
+No estate refresh status has been recorded yet.
+""",
+        "estate/estate_sources.json": """[]
 """,
 "docs/history/FAILURE_PATTERNS.md": """# Failure Patterns
 
@@ -1037,6 +1053,7 @@ import argparse
 import json
 import sys
 from collections import Counter
+from datetime import UTC, datetime
 from pathlib import Path
 
 
@@ -1070,6 +1087,10 @@ PRIORITY_THRESHOLDS = [
     (7.0, "elevated"),
     (0.0, "normal"),
 ]
+
+
+def now_utc() -> str:
+    return datetime.now(UTC).strftime("%Y-%m-%d %H:%M:%S UTC")
 
 
 def label_from_threshold(value: int | float, thresholds: list[tuple[int | float, str]]) -> str:
@@ -1139,13 +1160,28 @@ def decayed_priority_score(name: str, records: list[dict]) -> float:
     return score
 
 
-def resolve_input(arg: str) -> tuple[str, Path]:
+def normalize_tags(raw_tags, fallback: str) -> list[str]:
+    tags: list[str] = []
+    if isinstance(raw_tags, list):
+        tags = [str(item).strip() for item in raw_tags if str(item).strip()]
+    elif isinstance(raw_tags, str) and raw_tags.strip():
+        tags = [raw_tags.strip()]
+    if fallback and fallback not in tags:
+        tags.insert(0, fallback)
+    return tags
+
+
+def resolve_input(arg: str, base_dir: Path | None = None) -> tuple[str, Path]:
     if "=" in arg:
         label, raw = arg.split("=", 1)
     else:
         label, raw = "", arg
 
-    source = Path(raw).resolve()
+    source = Path(raw)
+    if not source.is_absolute() and base_dir is not None:
+        source = base_dir / source
+    source = source.resolve()
+
     if source.is_dir():
         ndjson = source / "docs" / "history" / "ATTEMPTS.ndjson"
         derived_label = source.name
@@ -1182,8 +1218,79 @@ def pick_top_class(classes: dict[str, int]) -> str:
     )[0]
 
 
-def discover_sources(roots: list[Path]) -> list[tuple[str, Path]]:
-    discovered: list[tuple[str, Path]] = []
+def make_source(
+    *,
+    origin: str,
+    label: str,
+    ndjson_path: Path,
+    owner: str = "unknown",
+    environment: str = "unknown",
+    host: str = "unknown",
+    repo_class: str = "unknown",
+    tags: list[str] | None = None,
+    notes: str = "",
+    discovered_from: str = "",
+) -> dict:
+    return {
+        "origin": origin,
+        "label": label,
+        "ndjson_path": ndjson_path.resolve(),
+        "owner": owner.strip() or "unknown",
+        "environment": environment.strip() or "unknown",
+        "host": host.strip() or "unknown",
+        "repo_class": repo_class.strip() or "unknown",
+        "tags": tags or [],
+        "notes": notes.strip(),
+        "discovered_from": discovered_from.strip(),
+    }
+
+
+def explicit_source_from_arg(arg: str) -> dict:
+    label, ndjson = resolve_input(arg)
+    return make_source(
+        origin="explicit",
+        label=label,
+        ndjson_path=ndjson,
+        tags=normalize_tags([], "explicit"),
+    )
+
+
+def manifest_source_from_item(item: dict, manifest_path: Path) -> dict:
+    if not isinstance(item, dict):
+        raise ValueError("manifest entries must be objects")
+    label = str(item.get("label", "")).strip()
+    raw_path = str(item.get("path", "")).strip()
+    if not raw_path:
+        raise ValueError("manifest entry missing path")
+    entry_label, entry_path = resolve_input(
+        f"{label}={raw_path}" if label else raw_path,
+        manifest_path.parent,
+    )
+    return make_source(
+        origin="manifest",
+        label=entry_label,
+        ndjson_path=entry_path,
+        owner=str(item.get("owner", "unknown")),
+        environment=str(item.get("environment", "unknown")),
+        host=str(item.get("host", "unknown")),
+        repo_class=str(item.get("repo_class", "unknown")),
+        tags=normalize_tags(item.get("tags", []), "manifest"),
+        notes=str(item.get("notes", "")),
+    )
+
+
+def load_manifest_entries(path: Path) -> list[dict]:
+    data = json.loads(path.read_text(encoding="utf-8"))
+    if not isinstance(data, list):
+        raise ValueError("manifest must be a JSON list")
+    entries: list[dict] = []
+    for item in data:
+        entries.append(manifest_source_from_item(item, path))
+    return entries
+
+
+def discover_sources(roots: list[Path]) -> list[dict]:
+    discovered: list[dict] = []
     seen: set[Path] = set()
     for root in roots:
         root_resolved = root.resolve()
@@ -1205,26 +1312,24 @@ def discover_sources(roots: list[Path]) -> list[tuple[str, Path]]:
             seen.add(resolved)
             repo_root = resolved.parent.parent.parent
             label = repo_root.name
-            discovered.append((label, resolved))
-    discovered.sort(key=lambda item: (item[0], str(item[1])))
+            discovered.append(
+                make_source(
+                    origin="discovered",
+                    label=label,
+                    ndjson_path=resolved,
+                    tags=normalize_tags([], "discovered"),
+                    notes=f"auto-discovered from {root_resolved}",
+                    discovered_from=str(root_resolved),
+                )
+            )
+    discovered.sort(key=lambda item: (item["label"], str(item["ndjson_path"])))
     return discovered
 
 
-def load_manifest_entries(path: Path) -> list[tuple[str, Path]]:
-    data = json.loads(path.read_text(encoding="utf-8"))
-    if not isinstance(data, list):
-        raise ValueError("manifest must be a JSON list")
-    entries: list[tuple[str, Path]] = []
-    for item in data:
-        if not isinstance(item, dict):
-            raise ValueError("manifest entries must be objects")
-        label = str(item.get("label", "")).strip()
-        raw_path = str(item.get("path", "")).strip()
-        if not raw_path:
-            raise ValueError("manifest entry missing path")
-        entry_label, entry_path = resolve_input(f"{label}={raw_path}" if label else raw_path)
-        entries.append((entry_label, entry_path))
-    return entries
+def join_tags(tags: list[str]) -> str:
+    if not tags:
+        return "none"
+    return ",".join(tags)
 
 
 def main() -> int:
@@ -1240,7 +1345,7 @@ def main() -> int:
         "--manifest",
         action="append",
         default=[],
-        help="Path to JSON manifest file. Each entry must be an object with label and path.",
+        help="Path to JSON manifest file. Each entry must be an object with label, path, and optional metadata.",
     )
     parser.add_argument(
         "--discover-root",
@@ -1258,43 +1363,50 @@ def main() -> int:
     estate_priority_queue = estate_dir / "ESTATE_PRIORITY_QUEUE.md"
     estate_action_queue = estate_dir / "ESTATE_ACTION_QUEUE.md"
     estate_ingest_summary = estate_dir / "ESTATE_INGEST_SUMMARY.md"
+    estate_catalog = estate_dir / "ESTATE_CATALOG.md"
+    estate_refresh_status = estate_dir / "ESTATE_REFRESH_STATUS.md"
 
-    explicit_sources = [resolve_input(arg) for arg in args.sources]
-    manifest_sources: list[tuple[str, Path]] = []
+    refresh_generated_utc = now_utc()
+
+    explicit_sources = [explicit_source_from_arg(arg) for arg in args.sources]
+    manifest_sources: list[dict] = []
     for manifest in args.manifest:
         manifest_sources.extend(load_manifest_entries(Path(manifest).resolve()))
     discovered_sources = discover_sources([Path(root).resolve() for root in args.discover_root])
 
-    merged_sources: list[tuple[str, Path]] = []
-    source_origin_rows: list[tuple[str, str, Path]] = []
+    merged_sources: list[dict] = []
+    source_origin_rows: list[dict] = []
     seen_paths: set[Path] = set()
 
-    for label, path in explicit_sources:
-        resolved = path.resolve()
+    for source in explicit_sources:
+        resolved = Path(source["ndjson_path"]).resolve()
         if resolved not in seen_paths:
             seen_paths.add(resolved)
-            merged_sources.append((label, resolved))
-        source_origin_rows.append(("explicit", label, resolved))
+            merged_sources.append(source)
+        source_origin_rows.append(source)
 
-    for label, path in manifest_sources:
-        resolved = path.resolve()
+    for source in manifest_sources:
+        resolved = Path(source["ndjson_path"]).resolve()
         if resolved not in seen_paths:
             seen_paths.add(resolved)
-            merged_sources.append((label, resolved))
-        source_origin_rows.append(("manifest", label, resolved))
+            merged_sources.append(source)
+        source_origin_rows.append(source)
 
-    for label, path in discovered_sources:
-        resolved = path.resolve()
+    for source in discovered_sources:
+        resolved = Path(source["ndjson_path"]).resolve()
         if resolved not in seen_paths:
             seen_paths.add(resolved)
-            merged_sources.append((label, resolved))
-        source_origin_rows.append(("discovered", label, resolved))
+            merged_sources.append(source)
+        source_origin_rows.append(source)
 
     repo_rows: list[dict] = []
     latest_classes_counter = Counter()
     skipped_sources: list[str] = []
 
-    for label, ndjson_path in merged_sources:
+    for source in merged_sources:
+        label = str(source["label"])
+        ndjson_path = Path(str(source["ndjson_path"])).resolve()
+
         if not ndjson_path.is_file():
             skipped_sources.append(f"{label} -> missing file: {ndjson_path}")
             continue
@@ -1356,6 +1468,13 @@ def main() -> int:
                 "top_class": top_class,
                 "action": action,
                 "repo_priority_score": repo_priority_score,
+                "owner": str(source["owner"]),
+                "environment": str(source["environment"]),
+                "host": str(source["host"]),
+                "repo_class": str(source["repo_class"]),
+                "tags": list(source["tags"]),
+                "notes": str(source["notes"]),
+                "origin": str(source["origin"]),
             }
         )
 
@@ -1385,7 +1504,7 @@ def main() -> int:
         "\\n## Per-Repo Latest State\\n"
         + (
             "\\n".join(
-                f"- {row['label']}: attempts={row['attempts']}, latest_source={row['latest_source_name']}, gate={row['approval_gate']}, operator_mode={row['operator_mode']}, priority_bucket={row['highest_priority_bucket']}, latest_failure_lines={row['latest_failure_lines']}, latest_weighted_severity={row['latest_weighted_severity']}, top_class={row['top_class']}"
+                f"- {row['label']}: attempts={row['attempts']}, latest_source={row['latest_source_name']}, gate={row['approval_gate']}, operator_mode={row['operator_mode']}, priority_bucket={row['highest_priority_bucket']}, latest_failure_lines={row['latest_failure_lines']}, latest_weighted_severity={row['latest_weighted_severity']}, top_class={row['top_class']}, owner={row['owner']}, environment={row['environment']}, host={row['host']}, repo_class={row['repo_class']}, tags={join_tags(row['tags'])}"
                 for row in repo_rows
             )
             if repo_rows
@@ -1411,7 +1530,7 @@ def main() -> int:
         "\\n## Repos Requiring Attention\\n"
         + (
             "\\n".join(
-                f"- {row['label']}: repo_priority_score={row['repo_priority_score']:.2f}, gate={row['approval_gate']}, operator_mode={row['operator_mode']}, priority_bucket={row['highest_priority_bucket']}, latest_weighted_severity={row['latest_weighted_severity']}, latest_failure_lines={row['latest_failure_lines']}, top_class={row['top_class']}"
+                f"- {row['label']}: repo_priority_score={row['repo_priority_score']:.2f}, gate={row['approval_gate']}, operator_mode={row['operator_mode']}, priority_bucket={row['highest_priority_bucket']}, latest_weighted_severity={row['latest_weighted_severity']}, latest_failure_lines={row['latest_failure_lines']}, top_class={row['top_class']}, tags={join_tags(row['tags'])}"
                 for row in repo_rows
             )
             if repo_rows
@@ -1428,7 +1547,7 @@ def main() -> int:
         "\\n## Recommended Next Moves\\n"
         + (
             "\\n".join(
-                f"- {idx}. [{row['approval_gate']}] {row['label']} | priority_bucket={row['highest_priority_bucket']} | repo_priority_score={row['repo_priority_score']:.2f} | top_class={row['top_class']} | action={row['action']}"
+                f"- {idx}. [{row['approval_gate']}] {row['label']} | owner={row['owner']} | environment={row['environment']} | priority_bucket={row['highest_priority_bucket']} | repo_priority_score={row['repo_priority_score']:.2f} | top_class={row['top_class']} | action={row['action']}"
                 for idx, row in enumerate(repo_rows, start=1)
             )
             if repo_rows
@@ -1449,8 +1568,8 @@ def main() -> int:
         "\\n## Source Origins\\n"
         + (
             "\\n".join(
-                f"- {origin}: {label} -> {path}"
-                for origin, label, path in source_origin_rows
+                f"- {source['origin']}: {source['label']} -> {source['ndjson_path']} | owner={source['owner']} | environment={source['environment']} | host={source['host']} | repo_class={source['repo_class']} | tags={join_tags(source['tags'])}"
+                for source in source_origin_rows
             )
             if source_origin_rows
             else "- none"
@@ -1465,10 +1584,61 @@ def main() -> int:
         encoding="utf-8",
     )
 
+    estate_catalog.write_text(
+        "# Estate Catalog\\n\\n"
+        f"- refresh_generated_utc: `{refresh_generated_utc}`\\n"
+        f"- registered_source_count: `{len(merged_sources)}`\\n"
+        f"- usable_source_count: `{len(repo_rows)}`\\n"
+        "\\n## Registered Sources\\n"
+        + (
+            "\\n".join(
+                f"- {source['label']}: origin={source['origin']}, owner={source['owner']}, environment={source['environment']}, host={source['host']}, repo_class={source['repo_class']}, tags={join_tags(source['tags'])}, ledger={source['ndjson_path']}, notes={source['notes'] if source['notes'] else 'none'}"
+                for source in merged_sources
+            )
+            if merged_sources
+            else "- none"
+        )
+        + "\\n",
+        encoding="utf-8",
+    )
+
+    estate_refresh_status.write_text(
+        "# Estate Refresh Status\\n\\n"
+        f"- refresh_generated_utc: `{refresh_generated_utc}`\\n"
+        f"- manifest_file_count: `{len(args.manifest)}`\\n"
+        f"- discover_root_count: `{len(args.discover_root)}`\\n"
+        f"- explicit_source_count: `{len(explicit_sources)}`\\n"
+        f"- unique_merged_source_count: `{len(merged_sources)}`\\n"
+        f"- usable_source_count: `{len(repo_rows)}`\\n"
+        f"- skipped_source_count: `{len(skipped_sources)}`\\n"
+        f"- highest_priority_bucket_across_estate: `{estate_highest_bucket}`\\n"
+        f"- sources_in_block: `{block_count}`\\n"
+        f"- sources_in_review: `{review_count}`\\n"
+        f"- sources_in_proceed: `{proceed_count}`\\n"
+        "\\n## Refresh Inputs\\n"
+        + (
+            "\\n".join(f"- manifest: {Path(item).resolve()}" for item in args.manifest)
+            if args.manifest
+            else "- manifest: none"
+        )
+        + "\\n"
+        + (
+            "\\n".join(f"- discover_root: {Path(item).resolve()}" for item in args.discover_root)
+            if args.discover_root
+            else "- discover_root: none"
+        )
+        + "\\n\\n## Refresh Helper\\n"
+        "- run `bash bin/estate-refresh.sh` to refresh from the repo registry\\n"
+        "- set `ESTATE_DISCOVER_ROOTS` to one or more space-separated roots when discovery should also run\\n",
+        encoding="utf-8",
+    )
+
     print(f"UPDATED {estate_history_summary}")
     print(f"UPDATED {estate_priority_queue}")
     print(f"UPDATED {estate_action_queue}")
     print(f"UPDATED {estate_ingest_summary}")
+    print(f"UPDATED {estate_catalog}")
+    print(f"UPDATED {estate_refresh_status}")
     return 0
 
 
@@ -1493,6 +1663,45 @@ EOF
 fi
 
 "${PYTHON_BIN}" "${REPO_DIR}/tools/build_estate_history_report.py" "$@"
+""",
+        "bin/estate-refresh.sh": """#!/usr/bin/env bash
+set -Eeuo pipefail
+
+REPO_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+PYTHON_BIN="${PYTHON_BIN:-python3}"
+MANIFEST_PATH="${ESTATE_MANIFEST_PATH:-${REPO_DIR}/estate/estate_sources.json}"
+DISCOVER_ROOTS_RAW="${ESTATE_DISCOVER_ROOTS:-}"
+
+ARGS=()
+
+if [[ -f "${MANIFEST_PATH}" ]]; then
+  ARGS+=(--manifest "${MANIFEST_PATH}")
+fi
+
+if [[ -n "${DISCOVER_ROOTS_RAW}" ]]; then
+  # shellcheck disable=SC2206
+  DISCOVER_ROOTS=( ${DISCOVER_ROOTS_RAW} )
+  for root in "${DISCOVER_ROOTS[@]}"; do
+    ARGS+=(--discover-root "${root}")
+  done
+fi
+
+ARGS+=("$@")
+
+if [[ "${#ARGS[@]}" -lt 1 ]]; then
+  cat >&2 <<'EOF'
+usage:
+  estate-refresh.sh [sources...]
+  estate-refresh.sh alpha=/path/to/repo
+  ESTATE_DISCOVER_ROOTS="/path/a /path/b" estate-refresh.sh
+notes:
+  - uses estate/estate_sources.json by default when present
+  - accepts extra explicit sources on the command line
+EOF
+  exit 2
+fi
+
+"${PYTHON_BIN}" "${REPO_DIR}/tools/build_estate_history_report.py" "${ARGS[@]}"
 """,
         "bin/history-import.sh": """#!/usr/bin/env bash
 set -Eeuo pipefail
