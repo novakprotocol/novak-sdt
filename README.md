@@ -2,9 +2,9 @@
 
 **Bootstrap or baseline repos with the SDT operator floor and product-truth floor.**
 
-This repo also includes an optional GitHub Pages front door under `site/` for public docs, proofs, and report publishing.
+This repo also includes an optional GitHub Pages front door for public docs, proofs, and report publishing.
 
-SDT is not a coding assistant replacement. It is a repo continuity and truth layer that helps humans, Copilot, and future AI work against the same repo with less hidden context.
+SDT is not a coding-assistant replacement. It is a repo continuity and truth layer that helps humans, Copilot, and future AI work against the same repo with less hidden context.
 
 ## What this repo does
 
@@ -14,13 +14,13 @@ This repo gives you a simple CLI called `sdt` that can:
 - baseline an existing repo with missing SDT floor files
 - generate a report-only baseline view without writing files
 - run a doctor check to show what is missing
-- generate Markdown and HTML repo reports
 
 ## What it does not do
 
 It does not magically invent missing product truth.
 
 If your repo does not clearly state:
+
 - what the product is
 - what is real now
 - what is planned
@@ -32,158 +32,147 @@ then `sdt` will scaffold those files and make the gap obvious, but a human still
 
 ### Create a new repo
 
-```bash
-sdt new \
-  --path /tmp/my-product \
-  --product-name "My Product" \
-  --product-statement "My Product is a product for X." \
-  --public-title "My Product" \
-  --repo-summary "My Product under SDT."
-Baseline an existing repo
-sdt baseline \
-  --path /path/to/existing-repo \
-  --product-name "Existing Product" \
-  --product-statement "Existing Product is a product for X."
-Report only
-sdt baseline \
-  --path /path/to/existing-repo \
-  --product-name "Existing Product" \
-  --product-statement "Existing Product is a product for X." \
-  --report-only
-Check a repo
-sdt doctor --path /path/to/repo
-Generate a repo report
-python3 tools/sdt_repo_report.py --path /path/to/repo
-How people actually use novak-sdt
-Do I download it?
+    sdt new \
+      --path /tmp/my-product \
+      --product-name "My Product" \
+      --product-statement "My Product is a product for X." \
+      --public-title "My Product" \
+      --repo-summary "My Product under SDT."
+
+### Baseline an existing repo
+
+    sdt baseline \
+      --path /path/to/existing-repo \
+      --product-name "Existing Product" \
+      --product-statement "Existing Product is a product for X."
+
+### Report only
+
+    sdt baseline \
+      --path /path/to/existing-repo \
+      --product-name "Existing Product" \
+      --product-statement "Existing Product is a product for X." \
+      --report-only
+
+### Check a repo
+
+    sdt doctor --path /path/to/repo
+
+## How people actually use novak-sdt
+
+### Do I download it?
 
 Yes.
 
 You either:
 
-clone the repo, or
-download the source zip from GitHub.
-Then what?
+- clone the repo
+- download the source zip from GitHub
+
+### Then what?
 
 Install it locally and run one of these:
 
-sdt new
-sdt baseline
-sdt doctor
-python3 tools/sdt_repo_report.py --path ...
-Brand new repo flow
-git clone https://github.com/novakprotocol/novak-sdt.git
-cd novak-sdt
-python3 -m venv .venv
-. .venv/bin/activate
-python3 -m pip install -e .
+- `sdt new`
+- `sdt baseline`
+- `sdt doctor`
 
-sdt new \
-  --path /tmp/my-product \
-  --product-name "My Product" \
-  --product-statement "My Product is a product for X."
+### Brand new repo flow
+
+    git clone https://github.com/novakprotocol/novak-sdt.git
+    cd novak-sdt
+    python3 -m venv .venv
+    . .venv/bin/activate
+    python3 -m pip install -e .
+
+    sdt new \
+      --path /tmp/my-product \
+      --product-name "My Product" \
+      --product-statement "My Product is a product for X."
 
 That creates a new repo folder with:
 
-operator floor files
-product truth floor files
-a baseline gap report
-Existing repo flow
-git clone https://github.com/novakprotocol/novak-sdt.git
-cd novak-sdt
-python3 -m venv .venv
-. .venv/bin/activate
-python3 -m pip install -e .
+- operator floor files
+- product truth floor files
+- a baseline gap report
 
-sdt baseline \
-  --path /path/to/existing-repo \
-  --product-name "Existing Product" \
-  --product-statement "Existing Product is a product for X."
+### Existing repo flow
+
+    git clone https://github.com/novakprotocol/novak-sdt.git
+    cd novak-sdt
+    python3 -m venv .venv
+    . .venv/bin/activate
+    python3 -m pip install -e .
+
+    sdt baseline \
+      --path /path/to/existing-repo \
+      --product-name "Existing Product" \
+      --product-statement "Existing Product is a product for X."
 
 That adds the SDT floor files to an existing repo.
 
-Inspect first without writing files
-sdt baseline \
-  --path /path/to/existing-repo \
-  --product-name "Existing Product" \
-  --product-statement "Existing Product is a product for X." \
-  --report-only
+### Inspect first without writing files
+
+    sdt baseline \
+      --path /path/to/existing-repo \
+      --product-name "Existing Product" \
+      --product-statement "Existing Product is a product for X." \
+      --report-only
 
 That only shows the gap report.
 
-Generate a Markdown and HTML report
-python3 tools/sdt_repo_report.py --path /path/to/repo
+## Optional GitHub Pages site
 
-That generates:
+This repo includes a simple static GitHub Pages front door plus a Pages workflow under `.github/workflows/pages.yml`.
 
-docs/status/SDT_REPO_REPORT.md
-docs/status/SDT_REPO_REPORT.html
-Optional GitHub Pages site
-
-This repo includes a simple static GitHub Pages front door under site/ plus a Pages workflow under .github/workflows/pages.yml.
-
-What you get by default
+### What you get by default
 
 If you clone or fork this repo, you get:
 
-the site files
-the Pages workflow
-the proof/docs/report pages
-What does not happen automatically
+- the site files
+- the Pages workflow
+- the proof / docs / report pages
+
+### What does not happen automatically
 
 A live hosted Pages site is not enabled automatically on your GitHub repo just because these files exist.
 
-If you want your own live Pages site
+### If you want your own live Pages site
 
 After pushing the repo to GitHub:
 
-Go to Settings
-Go to Pages
-Under Build and deployment
-Set Source to GitHub Actions
+1. Go to **Settings**
+2. Go to **Pages**
+3. Under **Build and deployment**
+4. Set **Source** to **GitHub Actions**
 
 Then wait for the Deploy Pages workflow to complete.
 
-Default project-site URL pattern
+### Default project-site URL pattern
 
-Your site URL will usually be:
+    https://YOUR-GITHUB-NAME.github.io/YOUR-REPO-NAME/
 
-https://YOUR-GITHUB-NAME.github.io/YOUR-REPO-NAME/
+### Local preview
 
-Local preview
-cd site
-python3 -m http.server 8000
+    cd site
+    python3 -m http.server 8000
 
 Then open:
 
-http://localhost:8000/
+    http://localhost:8000/
 
-Notes
-the Pages site is optional
-it is intended as a public front door, docs surface, and proof/report surface
-do not publish sensitive information in the Pages site
-Learn fast
-docs/SDT_101.md
-docs/EXAMPLE_BASELINE_BEFORE_AFTER.md
-docs/DIAGRAM_01_OPERATIONAL_FLOW.md
-docs/DIAGRAM_02_FILES_ADDED.md
-docs/DIAGRAM_03_FRESHMAN_EXPLANATION.md
-docs/PUBLIC_VS_PRIVATE.md
-Rights
+### Notes
 
-This repository is public for visibility and limited evaluation use.
-It is not open source and it does not grant production, redistribution, managed-service, or commercial rights.
-
-See:
-
-LICENSE.txt
-NOTICE.md
+- the Pages site is optional
+- it is intended as a public front door, docs surface, and proof / report surface
+- do not publish sensitive information in the Pages site
 
 ## Plain-English explanation
 
 SDT is a small repo setup and cleanup tool. It gives a repo the minimum structure needed so a human or AI can quickly understand what the repo is, what is real now, and what to do next.
 
 In plain terms:
+
 - it helps new repos start cleaner
 - it helps messy repos become easier to understand
 - it helps teams stop losing project truth in chats, heads, and scattered files
@@ -195,7 +184,27 @@ For serious server or infra repos, SDT now also supports:
 - serious-mode execution receipts via `bash bin/sdt-serious-run.sh ...`
 - runtime inventory snapshots via `bash bin/sdt-inventory-snapshot.sh <repo_path> <label>`
 
-Use inventory mode for before/after server truth.
+Use inventory mode for before / after server truth.
+
+## Learn fast
+
+- `docs/SDT_101.md`
+- `docs/EXAMPLE_BASELINE_BEFORE_AFTER.md`
+- `docs/DIAGRAM_01_OPERATIONAL_FLOW.md`
+- `docs/DIAGRAM_02_FILES_ADDED.md`
+- `docs/DIAGRAM_03_FRESHMAN_EXPLANATION.md`
+- `docs/PUBLIC_VS_PRIVATE.md`
+
+## Rights
+
+This repository is public for visibility and limited evaluation use.
+
+It is not open source and it does not grant production, redistribution, managed-service, or commercial rights.
+
+See:
+
+- `LICENSE.txt`
+- `NOTICE.md`
 
 ## Documentation Doctrine
 
