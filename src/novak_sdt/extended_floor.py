@@ -23,6 +23,7 @@ def extended_required_floor_files() -> list[str]:
         "docs/estate/ESTATE_HISTORY_SUMMARY.md",
         "docs/estate/ESTATE_PRIORITY_QUEUE.md",
         "docs/estate/ESTATE_ACTION_QUEUE.md",
+        "docs/estate/ESTATE_INGEST_SUMMARY.md",
         "docs/history/FAILURE_PATTERNS.md",
         "docs/history/MISSED_OPPORTUNITIES.md",
         "docs/SDT_HISTORY_LANE.md",
@@ -78,6 +79,7 @@ nav:
       - Estate History Summary: estate/ESTATE_HISTORY_SUMMARY.md
       - Estate Priority Queue: estate/ESTATE_PRIORITY_QUEUE.md
       - Estate Action Queue: estate/ESTATE_ACTION_QUEUE.md
+      - Estate Ingest Summary: estate/ESTATE_INGEST_SUMMARY.md
       - Failure Patterns: history/FAILURE_PATTERNS.md
       - Missed Opportunities: history/MISSED_OPPORTUNITIES.md
 """,
@@ -223,6 +225,10 @@ No estate priority queue has been recorded yet.
         "docs/estate/ESTATE_ACTION_QUEUE.md": """# Estate Action Queue
 
 No estate action queue has been recorded yet.
+""",
+        "docs/estate/ESTATE_INGEST_SUMMARY.md": """# Estate Ingest Summary
+
+No estate ingest summary has been recorded yet.
 """,
 "docs/history/FAILURE_PATTERNS.md": """# Failure Patterns
 
@@ -1027,6 +1033,7 @@ if __name__ == "__main__":
         "tools/build_estate_history_report.py": """#!/usr/bin/env python3
 from __future__ import annotations
 
+import argparse
 import json
 import sys
 from collections import Counter
@@ -1175,10 +1182,73 @@ def pick_top_class(classes: dict[str, int]) -> str:
     )[0]
 
 
+def discover_sources(roots: list[Path]) -> list[tuple[str, Path]]:
+    discovered: list[tuple[str, Path]] = []
+    seen: set[Path] = set()
+    for root in roots:
+        root_resolved = root.resolve()
+        if not root_resolved.exists():
+            continue
+        for candidate in root_resolved.rglob("ATTEMPTS.ndjson"):
+            try:
+                if candidate.name != "ATTEMPTS.ndjson":
+                    continue
+                if candidate.parent.name != "history":
+                    continue
+                if candidate.parent.parent.name != "docs":
+                    continue
+            except IndexError:
+                continue
+            resolved = candidate.resolve()
+            if resolved in seen:
+                continue
+            seen.add(resolved)
+            repo_root = resolved.parent.parent.parent
+            label = repo_root.name
+            discovered.append((label, resolved))
+    discovered.sort(key=lambda item: (item[0], str(item[1])))
+    return discovered
+
+
+def load_manifest_entries(path: Path) -> list[tuple[str, Path]]:
+    data = json.loads(path.read_text(encoding="utf-8"))
+    if not isinstance(data, list):
+        raise ValueError("manifest must be a JSON list")
+    entries: list[tuple[str, Path]] = []
+    for item in data:
+        if not isinstance(item, dict):
+            raise ValueError("manifest entries must be objects")
+        label = str(item.get("label", "")).strip()
+        raw_path = str(item.get("path", "")).strip()
+        if not raw_path:
+            raise ValueError("manifest entry missing path")
+        entry_label, entry_path = resolve_input(f"{label}={raw_path}" if label else raw_path)
+        entries.append((entry_label, entry_path))
+    return entries
+
+
 def main() -> int:
-    if len(sys.argv) < 2:
-        print("usage: build_estate_history_report.py <label=repo-path|repo-path|ndjson> [...]", file=sys.stderr)
-        return 2
+    parser = argparse.ArgumentParser(
+        description="Build estate-level SDT history reports from explicit, manifest-driven, or auto-discovered sources."
+    )
+    parser.add_argument(
+        "sources",
+        nargs="*",
+        help="Explicit sources in the form label=repo-path, repo-path, or ndjson path.",
+    )
+    parser.add_argument(
+        "--manifest",
+        action="append",
+        default=[],
+        help="Path to JSON manifest file. Each entry must be an object with label and path.",
+    )
+    parser.add_argument(
+        "--discover-root",
+        action="append",
+        default=[],
+        help="Root path to scan recursively for docs/history/ATTEMPTS.ndjson files.",
+    )
+    args = parser.parse_args()
 
     repo = Path(__file__).resolve().parent.parent
     estate_dir = repo / "docs" / "estate"
@@ -1187,19 +1257,51 @@ def main() -> int:
     estate_history_summary = estate_dir / "ESTATE_HISTORY_SUMMARY.md"
     estate_priority_queue = estate_dir / "ESTATE_PRIORITY_QUEUE.md"
     estate_action_queue = estate_dir / "ESTATE_ACTION_QUEUE.md"
+    estate_ingest_summary = estate_dir / "ESTATE_INGEST_SUMMARY.md"
+
+    explicit_sources = [resolve_input(arg) for arg in args.sources]
+    manifest_sources: list[tuple[str, Path]] = []
+    for manifest in args.manifest:
+        manifest_sources.extend(load_manifest_entries(Path(manifest).resolve()))
+    discovered_sources = discover_sources([Path(root).resolve() for root in args.discover_root])
+
+    merged_sources: list[tuple[str, Path]] = []
+    source_origin_rows: list[tuple[str, str, Path]] = []
+    seen_paths: set[Path] = set()
+
+    for label, path in explicit_sources:
+        resolved = path.resolve()
+        if resolved not in seen_paths:
+            seen_paths.add(resolved)
+            merged_sources.append((label, resolved))
+        source_origin_rows.append(("explicit", label, resolved))
+
+    for label, path in manifest_sources:
+        resolved = path.resolve()
+        if resolved not in seen_paths:
+            seen_paths.add(resolved)
+            merged_sources.append((label, resolved))
+        source_origin_rows.append(("manifest", label, resolved))
+
+    for label, path in discovered_sources:
+        resolved = path.resolve()
+        if resolved not in seen_paths:
+            seen_paths.add(resolved)
+            merged_sources.append((label, resolved))
+        source_origin_rows.append(("discovered", label, resolved))
 
     repo_rows: list[dict] = []
     latest_classes_counter = Counter()
+    skipped_sources: list[str] = []
 
-    for arg in sys.argv[1:]:
-        label, ndjson_path = resolve_input(arg)
+    for label, ndjson_path in merged_sources:
         if not ndjson_path.is_file():
-            print(f"SKIP missing input: {label} -> {ndjson_path}")
+            skipped_sources.append(f"{label} -> missing file: {ndjson_path}")
             continue
 
         records = load_records(ndjson_path)
         if not records:
-            print(f"SKIP empty input: {label} -> {ndjson_path}")
+            skipped_sources.append(f"{label} -> empty ledger: {ndjson_path}")
             continue
 
         latest = records[-1]
@@ -1336,9 +1438,37 @@ def main() -> int:
         encoding="utf-8",
     )
 
+    estate_ingest_summary.write_text(
+        "# Estate Ingest Summary\\n\\n"
+        f"- explicit_source_count: `{len(explicit_sources)}`\\n"
+        f"- manifest_source_count: `{len(manifest_sources)}`\\n"
+        f"- discovered_source_count: `{len(discovered_sources)}`\\n"
+        f"- unique_merged_source_count: `{len(merged_sources)}`\\n"
+        f"- usable_source_count: `{len(repo_rows)}`\\n"
+        f"- skipped_source_count: `{len(skipped_sources)}`\\n"
+        "\\n## Source Origins\\n"
+        + (
+            "\\n".join(
+                f"- {origin}: {label} -> {path}"
+                for origin, label, path in source_origin_rows
+            )
+            if source_origin_rows
+            else "- none"
+        )
+        + "\\n\\n## Skipped Sources\\n"
+        + (
+            "\\n".join(f"- {item}" for item in skipped_sources)
+            if skipped_sources
+            else "- none"
+        )
+        + "\\n",
+        encoding="utf-8",
+    )
+
     print(f"UPDATED {estate_history_summary}")
     print(f"UPDATED {estate_priority_queue}")
     print(f"UPDATED {estate_action_queue}")
+    print(f"UPDATED {estate_ingest_summary}")
     return 0
 
 
@@ -1352,7 +1482,13 @@ REPO_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 PYTHON_BIN="${PYTHON_BIN:-python3}"
 
 if [[ "$#" -lt 1 ]]; then
-  echo "usage: estate-aggregate.sh <label=repo-path|repo-path|ndjson> [...]" >&2
+  cat >&2 <<'EOF'
+usage:
+  estate-aggregate.sh [sources...]
+  estate-aggregate.sh --manifest manifest.json
+  estate-aggregate.sh --discover-root /path/to/search
+  estate-aggregate.sh [sources...] [--manifest manifest.json] [--discover-root /path]
+EOF
   exit 2
 fi
 
