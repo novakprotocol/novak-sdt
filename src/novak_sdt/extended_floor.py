@@ -2066,8 +2066,10 @@ After=network-online.target
 Type=oneshot
 User=__RUN_AS_USER__
 WorkingDirectory=__REPO_DIR__
+Environment="ESTATE_RUNNER_MODE=timer"
 Environment="ESTATE_DISCOVER_ROOTS=__ESTATE_DISCOVER_ROOTS__"
-Environment="ESTATE_MANIFEST_PATH=__REPO_DIR__/estate/estate_sources.json"
+Environment="ESTATE_MAX_RETRIES=__ESTATE_MAX_RETRIES__"
+Environment="ESTATE_RETRY_DELAY_SECONDS=__ESTATE_RETRY_DELAY_SECONDS__"
 ExecStart=/usr/bin/env bash __REPO_DIR__/bin/estate-refresh-runner.sh
 
 [Install]
@@ -2155,6 +2157,8 @@ OUTPUT_DIR="${REPO_DIR}/ops/systemd/rendered"
 ON_CALENDAR="${ESTATE_ON_CALENDAR:-daily}"
 RUN_AS_USER="${ESTATE_RUN_AS_USER:-root}"
 DISCOVER_ROOTS="${ESTATE_DISCOVER_ROOTS:-}"
+MAX_RETRIES="${ESTATE_MAX_RETRIES:-2}"
+RETRY_DELAY_SECONDS="${ESTATE_RETRY_DELAY_SECONDS:-30}"
 INSTALL_MODE="no"
 
 while [[ "$#" -gt 0 ]]; do
@@ -2175,6 +2179,14 @@ while [[ "$#" -gt 0 ]]; do
       DISCOVER_ROOTS="$2"
       shift 2
       ;;
+    --max-retries)
+      MAX_RETRIES="$2"
+      shift 2
+      ;;
+    --retry-delay-seconds)
+      RETRY_DELAY_SECONDS="$2"
+      shift 2
+      ;;
     --install)
       INSTALL_MODE="yes"
       shift
@@ -2188,7 +2200,7 @@ done
 
 mkdir -p "${OUTPUT_DIR}"
 
-python3 - "${SERVICE_TEMPLATE}" "${TIMER_TEMPLATE}" "${OUTPUT_DIR}" "${REPO_DIR}" "${RUN_AS_USER}" "${DISCOVER_ROOTS}" "${ON_CALENDAR}" <<'INNERPY'
+python3 - "${SERVICE_TEMPLATE}" "${TIMER_TEMPLATE}" "${OUTPUT_DIR}" "${REPO_DIR}" "${RUN_AS_USER}" "${DISCOVER_ROOTS}" "${ON_CALENDAR}" "${MAX_RETRIES}" "${RETRY_DELAY_SECONDS}" <<INNERPY
 from pathlib import Path
 import sys
 
@@ -2199,12 +2211,16 @@ repo_dir = sys.argv[4]
 run_as_user = sys.argv[5]
 discover_roots = sys.argv[6]
 on_calendar = sys.argv[7]
+max_retries = sys.argv[8]
+retry_delay_seconds = sys.argv[9]
 
 replacements = {
     "__REPO_DIR__": repo_dir,
     "__RUN_AS_USER__": run_as_user,
     "__ESTATE_DISCOVER_ROOTS__": discover_roots,
     "__ON_CALENDAR__": on_calendar,
+    "__ESTATE_MAX_RETRIES__": max_retries,
+    "__ESTATE_RETRY_DELAY_SECONDS__": retry_delay_seconds,
 }
 
 service_text = service_template
