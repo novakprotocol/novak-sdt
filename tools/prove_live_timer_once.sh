@@ -55,12 +55,16 @@ cat > "${SOURCE_REPO}/docs/history/ATTEMPTS.ndjson" <<'DOC'
 DOC
 timer
 
-step "04 - schedule one live run"
+step "04 - schedule one retained live run"
 cleanup_unit
 systemd-run \
   --unit "${UNIT_NAME}" \
   --on-active=10s \
-  /usr/bin/env bash "${PROOF_REPO}/bin/estate-refresh-runner.sh" "alpha=${SOURCE_REPO}"
+  --working-directory="${PROOF_REPO}" \
+  --setenv=ESTATE_RUNNER_MODE=timer \
+  --property=Type=oneshot \
+  --property=RemainAfterExit=yes \
+  /usr/bin/env bash -lc "bash bin/estate-refresh-runner.sh alpha=${SOURCE_REPO}"
 timer
 
 step "05 - wait for timer to fire"
@@ -69,9 +73,20 @@ timer
 
 step "06 - capture proof"
 mkdir -p "${WORKDIR}/capture"
-systemctl status "${UNIT_NAME}.timer" --no-pager > "${WORKDIR}/capture/timer_status.txt" 2>&1 || true
-systemctl status "${UNIT_NAME}.service" --no-pager > "${WORKDIR}/capture/service_status.txt" 2>&1 || true
-journalctl -u "${UNIT_NAME}.service" --no-pager -n 200 > "${WORKDIR}/capture/journal.txt" 2>&1 || true
+
+systemctl show "${UNIT_NAME}.timer" \
+  -p Id -p ActiveState -p SubState -p Result -p LastTriggerUSec -p NextElapseUSecMonotonic \
+  > "${WORKDIR}/capture/timer_show.txt" 2>&1 || true
+
+systemctl show "${UNIT_NAME}.service" \
+  -p Id -p ActiveState -p SubState -p Result -p ExecMainStatus \
+  > "${WORKDIR}/capture/service_show.txt" 2>&1 || true
+
+journalctl -u "${UNIT_NAME}.service" --no-pager -n 200 \
+  > "${WORKDIR}/capture/journal.txt" 2>&1 || true
+
+RUNNER_MODE_LINE="$(grep -m1 'runner_mode:' "${PROOF_REPO}/docs/estate/ESTATE_RUNNER_STATUS.md" || true)"
+OUTCOME_LINE="$(grep -m1 'outcome:' "${PROOF_REPO}/docs/estate/ESTATE_RUNNER_STATUS.md" || true)"
 
 cat > "${REPO_ROOT}/docs/status/SDT_LIVE_TIMER_PROOF_LATEST.md" <<DOC
 # SDT live timer proof latest
@@ -89,28 +104,44 @@ $(date -u '+%F %T UTC')
 - ${SOURCE_REPO}
 
 ## Captured files
-- ${WORKDIR}/capture/timer_status.txt
-- ${WORKDIR}/capture/service_status.txt
+- ${WORKDIR}/capture/timer_show.txt
+- ${WORKDIR}/capture/service_show.txt
 - ${WORKDIR}/capture/journal.txt
 
+## Key expectations
+- runner_mode should be \`timer\`
+- outcome should be \`success\`
+- timer unit should show a trigger
+- service unit should retain a visible result
+
 ## Runner status excerpt
+\`\`\`
+$(sed -n '1,80p' "${PROOF_REPO}/docs/estate/ESTATE_RUNNER_STATUS.md" 2>/dev/null || true)
+\`\`\`
+
+## Timer show
+\`\`\`
+$(sed -n '1,120p' "${WORKDIR}/capture/timer_show.txt" 2>/dev/null || true)
+\`\`\`
+
+## Service show
+\`\`\`
+$(sed -n '1,120p' "${WORKDIR}/capture/service_show.txt" 2>/dev/null || true)
+\`\`\`
+
+## Journal excerpt
+\`\`\`
+$(sed -n '1,120p' "${WORKDIR}/capture/journal.txt" 2>/dev/null || true)
+\`\`\`
+
+## Fast truth
+- ${RUNNER_MODE_LINE}
+- ${OUTCOME_LINE}
 DOC
 
-{
-  echo
-  echo '```'
-  sed -n '1,120p' "${PROOF_REPO}/docs/estate/ESTATE_RUNNER_STATUS.md" 2>/dev/null || true
-  echo '```'
-  echo
-  echo "## Service status excerpt"
-  echo '```'
-  sed -n '1,120p' "${WORKDIR}/capture/service_status.txt" 2>/dev/null || true
-  echo '```'
-} >> "${REPO_ROOT}/docs/status/SDT_LIVE_TIMER_PROOF_LATEST.md"
-
-sed -n '1,220p' "${REPO_ROOT}/docs/status/SDT_LIVE_TIMER_PROOF_LATEST.md"
+sed -n '1,240p' "${REPO_ROOT}/docs/status/SDT_LIVE_TIMER_PROOF_LATEST.md"
 timer
 
 step "07 - done"
-echo "LIVE_TIMER_PROOF_DONE"
+echo "LIVE_TIMER_PROOF_FIXED_DONE"
 timer
