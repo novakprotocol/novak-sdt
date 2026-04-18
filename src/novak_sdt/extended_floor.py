@@ -2190,7 +2190,7 @@ DOC
 notify_event() {
   local event="$1"
   local message="$2"
-  if [[ -x "${REPO_DIR}/bin/estate-notify.sh" ]]; then
+  if [[ -f "${REPO_DIR}/bin/estate-notify.sh" ]]; then
     set +e
     bash "${REPO_DIR}/bin/estate-notify.sh" \
       --event "${event}" \
