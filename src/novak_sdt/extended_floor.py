@@ -398,7 +398,7 @@ notes_value = data.get("notes", "")
         f"- generated_utc: `{data.get('generated_utc', 'UNSET')}`",
         f"- start_time: `{timing.get('start_local', 'UNSET')}`",
         f"- finish_time: `{timing.get('end_local', 'UNSET')}`",
-        f"- elapsed_seconds: `{timing.get('run_elapsed_sec', 'UNSET')}`",
+        f"- elapsed_seconds: {timing.get('run_elapsed_sec', 'UNSET')}",
         f"- next_step: `{data.get('next_step', 'UNSET') or 'UNSET'}`",
         "",
         "## Notes",
@@ -2148,61 +2148,91 @@ WantedBy=timers.target
 set -Eeuo pipefail
 
 START_EPOCH="$(date +%s)"
-START_UTC="$(date -u '+%Y-%m-%d %H:%M:%S UTC')"
 REPO_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+LOCK_DIR="${REPO_DIR}/.estate-refresh.lock"
 STATUS_DOC="${REPO_DIR}/docs/estate/ESTATE_RUNNER_STATUS.md"
 RUNNER_MODE="${ESTATE_RUNNER_MODE:-manual}"
-MANIFEST_PATH="${ESTATE_MANIFEST_PATH:-${REPO_DIR}/estate/estate_sources.json}"
-DISCOVER_ROOTS="${ESTATE_DISCOVER_ROOTS:-}"
-ARGS=("$@")
-ARGS_DISPLAY="(none)"
-OUTCOME="running"
-FINISH_UTC="in-progress"
-ELAPSED_SECONDS="0"
+MANIFEST_PATH="${ESTATE_MANIFEST_PATH:-none}"
+DISCOVER_ROOTS="${ESTATE_DISCOVER_ROOTS:-none}"
+ARGUMENT_COUNT="$#"
+RUN_LABEL="estate-refresh-runner"
+REFRESH_CMD="bash ${REPO_DIR}/bin/estate-refresh.sh $*"
 
-if [[ "${#ARGS[@]}" -gt 0 ]]; then
-  ARGS_DISPLAY="$(printf '%q ' "${ARGS[@]}")"
-  ARGS_DISPLAY="${ARGS_DISPLAY% }"
-fi
+mkdir -p "$(dirname "${STATUS_DOC}")"
 
 write_status() {
-  mkdir -p "$(dirname "${STATUS_DOC}")"
-  cat > "${STATUS_DOC}" <<EOF
+  local started_utc="$1"
+  local finished_utc="$2"
+  local outcome="$3"
+  local elapsed_seconds="$4"
+
+  cat > "${STATUS_DOC}" <<DOC
 # Estate Runner Status
 
-- last_run_started_utc: `${START_UTC}`
-- last_run_finished_utc: `${FINISH_UTC}`
-- outcome: `${OUTCOME}`
-- runner_mode: `${RUNNER_MODE}`
-- manifest_path: `${MANIFEST_PATH}`
-- discover_roots: `${DISCOVER_ROOTS:-none}`
-- argument_count: `${#ARGS[@]}`
-- elapsed_seconds: `${ELAPSED_SECONDS}`
+- last_run_started_utc: ${started_utc}
+- last_run_finished_utc: ${finished_utc}
+- outcome: ${outcome}
+- runner_mode: ${RUNNER_MODE}
+- manifest_path: ${MANIFEST_PATH}
+- discover_roots: ${DISCOVER_ROOTS}
+- argument_count: ${ARGUMENT_COUNT}
+- elapsed_seconds: ${elapsed_seconds}
 
 ## Command
-- refresh_command: `bash bin/estate-refresh.sh ${ARGS_DISPLAY}`
+- refresh_command: ${REFRESH_CMD}
 
 ## Notes
-- run `bash bin/install-estate-refresh-timer.sh --output-dir /tmp/estate-systemd` to render timer and service files
-- review `docs/estate/ESTATE_REFRESH_STATUS.md` after each run
-EOF
+- run /tmp/estate-systemd render path is handled by install-estate-refresh-timer.sh
+- review docs/estate/ESTATE_REFRESH_STATUS.md after each run
+DOC
 }
 
-finish() {
-  local rc="$1"
-  FINISH_UTC="$(date -u '+%Y-%m-%d %H:%M:%S UTC')"
-  ELAPSED_SECONDS="$(( $(date +%s) - START_EPOCH ))"
-  if [[ "${rc}" -eq 0 ]]; then
-    OUTCOME="success"
-  else
-    OUTCOME="failure"
+notify_event() {
+  local event="$1"
+  local message="$2"
+  if [[ -x "${REPO_DIR}/bin/estate-notify.sh" ]]; then
+    set +e
+    bash "${REPO_DIR}/bin/estate-notify.sh" \
+      --event "${event}" \
+      --run-label "${RUN_LABEL}" \
+      --message "${message}" \
+      --source "${STATUS_DOC}" >/dev/null 2>&1
+    set -e
   fi
-  write_status
 }
 
-trap 'rc=$?; finish "${rc}"; exit "${rc}"' EXIT
+STARTED_UTC="$(date -u '+%F %T UTC')"
 
-bash "${REPO_DIR}/bin/estate-refresh.sh" "${ARGS[@]}"
+if ! mkdir "${LOCK_DIR}" 2>/dev/null; then
+  FINISHED_UTC="$(date -u '+%F %T UTC')"
+  ELAPSED_SECONDS="$(( $(date +%s) - START_EPOCH ))"
+  write_status "${STARTED_UTC}" "${FINISHED_UTC}" "lock-busy" "${ELAPSED_SECONDS}"
+  notify_event "lock-busy" "estate refresh runner lock busy"
+  exit 75
+fi
+
+cleanup() {
+  rmdir "${LOCK_DIR}" 2>/dev/null || true
+}
+trap cleanup EXIT
+
+set +e
+bash "${REPO_DIR}/bin/estate-refresh.sh" "$@"
+RC="$?"
+set -e
+
+FINISHED_UTC="$(date -u '+%F %T UTC')"
+ELAPSED_SECONDS="$(( $(date +%s) - START_EPOCH ))"
+
+if [[ "${RC}" -eq 0 ]]; then
+  write_status "${STARTED_UTC}" "${FINISHED_UTC}" "success" "${ELAPSED_SECONDS}"
+  notify_event "success" "estate refresh runner success"
+else
+  write_status "${STARTED_UTC}" "${FINISHED_UTC}" "failure" "${ELAPSED_SECONDS}"
+  notify_event "failure" "estate refresh runner failure rc=${RC}"
+fi
+
+exit "${RC}"
 """,
         "bin/install-estate-refresh-timer.sh": """#!/usr/bin/env bash
 set -Eeuo pipefail
