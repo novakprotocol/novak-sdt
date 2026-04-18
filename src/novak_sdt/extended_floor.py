@@ -33,10 +33,15 @@ def extended_required_floor_files() -> list[str]:
         "docs/estate/ESTATE_RUNNER_STATUS.md",
         "estate/estate_sources.json",
         "estate/archive/estate_refresh_history.ndjson",
+        "estate/notification_config.json",
+        "estate/outbox/notifications.ndjson",
         "ops/systemd/estate-refresh.service",
         "ops/systemd/estate-refresh.timer",
         "bin/estate-refresh-runner.sh",
         "bin/install-estate-refresh-timer.sh",
+        "docs/estate/ESTATE_FAILURE_POLICY.md",
+        "docs/estate/ESTATE_NOTIFICATIONS.md",
+        "docs/estate/ESTATE_NOTIFICATION_STATUS.md",
         "docs/history/FAILURE_PATTERNS.md",
         "docs/history/MISSED_OPPORTUNITIES.md",
         "docs/SDT_HISTORY_LANE.md",
@@ -44,6 +49,7 @@ def extended_required_floor_files() -> list[str]:
         "tools/render_freshness_gauge.py",
         "tools/archive_history_log.py",
         "tools/build_estate_history_report.py",
+        "bin/estate-notify.sh",
         "bin/history-import.sh",
         "bin/estate-aggregate.sh",
         "bin/estate-refresh.sh",
@@ -101,6 +107,9 @@ nav:
       - Estate Trends: estate/ESTATE_TRENDS.md
       - Estate Cadence: estate/ESTATE_CADENCE.md
       - Estate Runner Status: estate/ESTATE_RUNNER_STATUS.md
+      - Estate Failure Policy: estate/ESTATE_FAILURE_POLICY.md
+      - Estate Notifications: estate/ESTATE_NOTIFICATIONS.md
+      - Estate Notification Status: estate/ESTATE_NOTIFICATION_STATUS.md
       - Failure Patterns: history/FAILURE_PATTERNS.md
       - Missed Opportunities: history/MISSED_OPPORTUNITIES.md
 """,
@@ -261,7 +270,14 @@ No estate refresh status has been recorded yet.
 """,
         "estate/estate_sources.json": """[]
 """,
-        "docs/estate/ESTATE_ARCHIVE_INDEX.md": """# Estate Archive Index
+                "estate/notification_config.json": """{
+  "enabled": true,
+  "profile": "notify-n1",
+  "channels": []
+}
+""",
+        "estate/outbox/notifications.ndjson": "",
+"docs/estate/ESTATE_ARCHIVE_INDEX.md": """# Estate Archive Index
 
 No estate archive index has been recorded yet.
 """,
@@ -293,6 +309,47 @@ No estate trends have been recorded yet.
         "docs/estate/ESTATE_RUNNER_STATUS.md": """# Estate Runner Status
 
 No estate runner status has been recorded yet.
+""",
+        "docs/estate/ESTATE_FAILURE_POLICY.md": """# Estate Failure Policy
+
+## Notify N1 return codes
+- lock-busy -> `75`
+- failure -> `2`
+- success -> `0`
+
+## Rule
+Notify N1 records event, status, and return code deterministically before exiting.
+""",
+        "docs/estate/ESTATE_NOTIFICATIONS.md": """# Estate Notifications
+
+## Scope
+Notify N1 is the minimum notification lane.
+
+## Included
+- deterministic outbox writes
+- notification status rendering
+- reproducible helper return codes
+
+## Not included
+- routing policy
+- secrets handling
+- fanout
+- multi-channel delivery
+""",
+        "docs/estate/ESTATE_NOTIFICATION_STATUS.md": """# Estate Notification Status
+
+- total_events: `0`
+- last_event: `none`
+- last_status: `none`
+- last_run_label: `none`
+
+## Counts
+- lock-busy: `0`
+- failure: `0`
+- success: `0`
+
+## Latest 5 events
+- none yet
 """,
 "docs/history/FAILURE_PATTERNS.md": """# Failure Patterns
 
@@ -2245,7 +2302,151 @@ if [[ "${INSTALL_MODE}" == "yes" ]]; then
   echo "NEXT: systemctl enable --now estate-refresh.timer"
 fi
 """,
-        "bin/history-import.sh": """#!/usr/bin/env bash
+                "bin/estate-notify.sh": """#!/usr/bin/env bash
+set -Eeuo pipefail
+
+REPO_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+OUTBOX="${REPO_DIR}/estate/outbox/notifications.ndjson"
+STATUS_DOC="${REPO_DIR}/docs/estate/ESTATE_NOTIFICATION_STATUS.md"
+
+EVENT=""
+RUN_LABEL=""
+STATUS=""
+MESSAGE=""
+SOURCE=""
+
+while [[ "$#" -gt 0 ]]; do
+  case "$1" in
+    --event)
+      EVENT="$2"
+      shift 2
+      ;;
+    --run-label)
+      RUN_LABEL="$2"
+      shift 2
+      ;;
+    --status)
+      STATUS="$2"
+      shift 2
+      ;;
+    --message)
+      MESSAGE="$2"
+      shift 2
+      ;;
+    --source)
+      SOURCE="$2"
+      shift 2
+      ;;
+    *)
+      echo "ERROR: unknown argument: $1" >&2
+      exit 2
+      ;;
+  esac
+done
+
+if [[ -z "${EVENT}" ]]; then
+  echo "ERROR: --event is required" >&2
+  exit 2
+fi
+
+case "${EVENT}" in
+  lock-busy)
+    EXIT_RC=75
+    DEFAULT_STATUS="LOCK_BUSY"
+    ;;
+  failure)
+    EXIT_RC=2
+    DEFAULT_STATUS="FAIL"
+    ;;
+  success)
+    EXIT_RC=0
+    DEFAULT_STATUS="PASS"
+    ;;
+  *)
+    echo "ERROR: unsupported event: ${EVENT}" >&2
+    exit 2
+    ;;
+esac
+
+if [[ -z "${STATUS}" ]]; then
+  STATUS="${DEFAULT_STATUS}"
+fi
+
+mkdir -p "$(dirname "${OUTBOX}")" "$(dirname "${STATUS_DOC}")"
+
+python3 - "${OUTBOX}" "${STATUS_DOC}" "${EVENT}" "${RUN_LABEL}" "${STATUS}" "${MESSAGE}" "${SOURCE}" <<'INNERPY'
+import json
+import sys
+from collections import Counter
+from datetime import UTC, datetime
+from pathlib import Path
+
+outbox = Path(sys.argv[1])
+status_doc = Path(sys.argv[2])
+event = sys.argv[3]
+run_label = sys.argv[4]
+status = sys.argv[5]
+message = sys.argv[6]
+source = sys.argv[7]
+
+timestamp = datetime.now(UTC).strftime("%Y-%m-%d %H:%M:%S UTC")
+
+record = {
+    "event": event,
+    "message": message,
+    "run_label": run_label,
+    "source": source,
+    "status": status,
+    "timestamp_utc": timestamp,
+}
+
+with outbox.open("a", encoding="utf-8") as f:
+    f.write(json.dumps(record, sort_keys=True) + "\\n")
+
+records = []
+with outbox.open("r", encoding="utf-8") as f:
+    for raw in f:
+        raw = raw.strip()
+        if raw:
+            records.append(json.loads(raw))
+
+counts = Counter(r["event"] for r in records)
+last = records[-1]
+
+latest_lines = []
+for item in records[-5:]:
+    latest_lines.append(
+        f"- `{item['timestamp_utc']}` | `{item['event']}` | `{item['status']}` | `{item.get('run_label', '') or '-'}`"
+    )
+
+status_doc.write_text(
+    "\\n".join(
+        [
+            "# Estate Notification Status",
+            "",
+            f"- total_events: `{len(records)}`",
+            f"- last_event: `{last['event']}`",
+            f"- last_status: `{last['status']}`",
+            f"- last_run_label: `{last.get('run_label', '') or '-'}`",
+            "",
+            "## Counts",
+            f"- lock-busy: `{counts.get('lock-busy', 0)}`",
+            f"- failure: `{counts.get('failure', 0)}`",
+            f"- success: `{counts.get('success', 0)}`",
+            "",
+            "## Latest 5 events",
+            *latest_lines,
+            "",
+        ]
+    ) + "\\n",
+    encoding="utf-8",
+)
+INNERPY
+
+echo "NOTIFY_EVENT=${EVENT} STATUS=${STATUS} RC=${EXIT_RC}"
+exit "${EXIT_RC}"
+""",
+"bin/history-import.sh": """#!/usr/bin/env bash
 set -Eeuo pipefail
 set +H
 
