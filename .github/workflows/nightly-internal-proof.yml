@@ -1,0 +1,35 @@
+name: nightly-internal-proof
+
+on:
+  workflow_dispatch:
+  schedule:
+    - cron: "15 6 * * *"
+
+jobs:
+  proof:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install package
+        run: |
+          python -m pip install --upgrade pip
+          python -m pip install -e .
+
+      - name: Acceptance smoke
+        run: bash bin/sdt_acceptance_smoke.sh
+
+      - name: Notify N1 proof
+        run: bash tools/prove_notify_n1.sh
+
+      - name: Upload proof note
+        uses: actions/upload-artifact@v4
+        with:
+          name: sdt-nightly-proof
+          path: |
+            docs/status/SDT_NOTIFY_N1_LATEST.md
+            docs/status/SDT_INTERNAL_CANDIDATE_PROOF.md
