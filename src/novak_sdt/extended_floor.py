@@ -2170,21 +2170,21 @@ write_status() {
   cat > "${STATUS_DOC}" <<EOF
 # Estate Runner Status
 
-- last_run_started_utc: \`${START_UTC}\`
-- last_run_finished_utc: \`${FINISH_UTC}\`
-- outcome: \`${OUTCOME}\`
-- runner_mode: \`${RUNNER_MODE}\`
-- manifest_path: \`${MANIFEST_PATH}\`
-- discover_roots: \`${DISCOVER_ROOTS:-none}\`
-- argument_count: \`${#ARGS[@]}\`
-- elapsed_seconds: \`${ELAPSED_SECONDS}\`
+- last_run_started_utc: `${START_UTC}`
+- last_run_finished_utc: `${FINISH_UTC}`
+- outcome: `${OUTCOME}`
+- runner_mode: `${RUNNER_MODE}`
+- manifest_path: `${MANIFEST_PATH}`
+- discover_roots: `${DISCOVER_ROOTS:-none}`
+- argument_count: `${#ARGS[@]}`
+- elapsed_seconds: `${ELAPSED_SECONDS}`
 
 ## Command
-- refresh_command: \`bash bin/estate-refresh.sh ${ARGS_DISPLAY}\`
+- refresh_command: `bash bin/estate-refresh.sh ${ARGS_DISPLAY}`
 
 ## Notes
-- run \`bash bin/install-estate-refresh-timer.sh --output-dir /tmp/estate-systemd\` to render timer and service files
-- review \`docs/estate/ESTATE_REFRESH_STATUS.md\` after each run
+- run `bash bin/install-estate-refresh-timer.sh --output-dir /tmp/estate-systemd` to render timer and service files
+- review `docs/estate/ESTATE_REFRESH_STATUS.md` after each run
 EOF
 }
 
