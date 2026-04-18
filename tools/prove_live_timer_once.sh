@@ -40,10 +40,10 @@ timer
 step "02 - create proof repo"
 sdt new \
   --path "${PROOF_REPO}" \
-  --product-name "SDT Live Timer Proof" \
-  --product-statement "SDT Live Timer Proof verifies a real scheduled fire on the host." \
-  --public-title "SDT Live Timer Proof" \
-  --repo-summary "Live timer proof." \
+  --product-name "SDT Live Timer Proof Honest" \
+  --product-statement "SDT Live Timer Proof Honest verifies one real timed run without profile noise." \
+  --public-title "SDT Live Timer Proof Honest" \
+  --repo-summary "Live timer proof with honest failure gating." \
   --git-commit
 timer
 
@@ -61,10 +61,12 @@ systemd-run \
   --unit "${UNIT_NAME}" \
   --on-active=10s \
   --working-directory="${PROOF_REPO}" \
+  --setenv=HOME="${PROOF_REPO}" \
+  --setenv=PATH=/usr/bin:/bin \
   --setenv=ESTATE_RUNNER_MODE=timer \
   --property=Type=oneshot \
   --property=RemainAfterExit=yes \
-  /usr/bin/env bash -lc "bash bin/estate-refresh-runner.sh alpha=${SOURCE_REPO}"
+  /usr/bin/env bash --noprofile --norc bin/estate-refresh-runner.sh "alpha=${SOURCE_REPO}"
 timer
 
 step "05 - wait for timer to fire"
@@ -85,8 +87,31 @@ systemctl show "${UNIT_NAME}.service" \
 journalctl -u "${UNIT_NAME}.service" --no-pager -n 200 \
   > "${WORKDIR}/capture/journal.txt" 2>&1 || true
 
-RUNNER_MODE_LINE="$(grep -m1 'runner_mode:' "${PROOF_REPO}/docs/estate/ESTATE_RUNNER_STATUS.md" || true)"
-OUTCOME_LINE="$(grep -m1 'outcome:' "${PROOF_REPO}/docs/estate/ESTATE_RUNNER_STATUS.md" || true)"
+RUNNER_STATUS="${PROOF_REPO}/docs/estate/ESTATE_RUNNER_STATUS.md"
+RUNNER_MODE_LINE="$(grep -m1 'runner_mode:' "${RUNNER_STATUS}" || true)"
+OUTCOME_LINE="$(grep -m1 'outcome:' "${RUNNER_STATUS}" || true)"
+
+grep -q '^Result=success$' "${WORKDIR}/capture/service_show.txt"
+grep -q '^ExecMainStatus=0$' "${WORKDIR}/capture/service_show.txt"
+grep -q '^LastTriggerUSec=' "${WORKDIR}/capture/timer_show.txt"
+
+if [[ "${RUNNER_MODE_LINE}" != *'\`timer\`'* ]]; then
+  echo "ERROR: live timer proof missing runner_mode=timer" >&2
+  sed -n '1,160p' "${RUNNER_STATUS}" >&2 || true
+  exit 1
+fi
+
+if [[ "${OUTCOME_LINE}" != *'\`success\`'* ]]; then
+  echo "ERROR: live timer proof missing outcome=success" >&2
+  sed -n '1,160p' "${RUNNER_STATUS}" >&2 || true
+  exit 1
+fi
+
+if grep -Eq '(/root/\.profile|command not found|Permission denied)' "${WORKDIR}/capture/journal.txt"; then
+  echo "ERROR: live timer proof journal contains profile or shell noise" >&2
+  sed -n '1,200p' "${WORKDIR}/capture/journal.txt" >&2
+  exit 1
+fi
 
 cat > "${REPO_ROOT}/docs/status/SDT_LIVE_TIMER_PROOF_LATEST.md" <<DOC
 # SDT live timer proof latest
@@ -108,15 +133,9 @@ $(date -u '+%F %T UTC')
 - ${WORKDIR}/capture/service_show.txt
 - ${WORKDIR}/capture/journal.txt
 
-## Key expectations
-- runner_mode should be \`timer\`
-- outcome should be \`success\`
-- timer unit should show a trigger
-- service unit should retain a visible result
-
 ## Runner status excerpt
 \`\`\`
-$(sed -n '1,80p' "${PROOF_REPO}/docs/estate/ESTATE_RUNNER_STATUS.md" 2>/dev/null || true)
+$(sed -n '1,120p' "${RUNNER_STATUS}" 2>/dev/null || true)
 \`\`\`
 
 ## Timer show
@@ -139,9 +158,9 @@ $(sed -n '1,120p' "${WORKDIR}/capture/journal.txt" 2>/dev/null || true)
 - ${OUTCOME_LINE}
 DOC
 
-sed -n '1,240p' "${REPO_ROOT}/docs/status/SDT_LIVE_TIMER_PROOF_LATEST.md"
+sed -n '1,220p' "${REPO_ROOT}/docs/status/SDT_LIVE_TIMER_PROOF_LATEST.md"
 timer
 
 step "07 - done"
-echo "LIVE_TIMER_PROOF_FIXED_DONE"
+echo "LIVE_TIMER_PROOF_HONEST_PASS"
 timer
