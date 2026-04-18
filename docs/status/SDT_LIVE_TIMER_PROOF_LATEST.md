@@ -1,7 +1,7 @@
 # SDT live timer proof latest
 
 ## Stamp
-2026-04-18 17:23:30 UTC
+2026-04-18 18:40:09 UTC
 
 ## Unit
 - sdt-live-proof-once
@@ -21,8 +21,8 @@
 ```
 # Estate Runner Status
 
-- last_run_started_utc: 2026-04-18 17:23:23 UTC
-- last_run_finished_utc: 2026-04-18 17:23:23 UTC
+- last_run_started_utc: 2026-04-18 18:40:01 UTC
+- last_run_finished_utc: 2026-04-18 18:40:01 UTC
 - outcome: success
 - runner_mode: timer
 - manifest_path: none
@@ -41,7 +41,7 @@
 ## Timer show
 ```
 NextElapseUSecMonotonic=infinity
-LastTriggerUSec=Sat 2026-04-18 17:23:23 UTC
+LastTriggerUSec=Sat 2026-04-18 18:40:01 UTC
 Result=success
 Id=sdt-live-proof-once.timer
 ActiveState=active
@@ -59,18 +59,18 @@ SubState=exited
 
 ## Journal excerpt
 ```
-Apr 18 17:23:23 novak-ansible-control systemd[1]: Starting sdt-live-proof-once.service - /usr/bin/env bash --noprofile --norc bin/estate-refresh-runner.sh alpha=/tmp/sdt-live-timer-proof/source...
-Apr 18 17:23:23 novak-ansible-control env[1440977]: UPDATED /tmp/sdt-live-timer-proof/repo/docs/estate/ESTATE_HISTORY_SUMMARY.md
-Apr 18 17:23:23 novak-ansible-control env[1440977]: UPDATED /tmp/sdt-live-timer-proof/repo/docs/estate/ESTATE_PRIORITY_QUEUE.md
-Apr 18 17:23:23 novak-ansible-control env[1440977]: UPDATED /tmp/sdt-live-timer-proof/repo/docs/estate/ESTATE_ACTION_QUEUE.md
-Apr 18 17:23:23 novak-ansible-control env[1440977]: UPDATED /tmp/sdt-live-timer-proof/repo/docs/estate/ESTATE_INGEST_SUMMARY.md
-Apr 18 17:23:23 novak-ansible-control env[1440977]: UPDATED /tmp/sdt-live-timer-proof/repo/docs/estate/ESTATE_CATALOG.md
-Apr 18 17:23:23 novak-ansible-control env[1440977]: UPDATED /tmp/sdt-live-timer-proof/repo/docs/estate/ESTATE_REFRESH_STATUS.md
-Apr 18 17:23:23 novak-ansible-control env[1440977]: UPDATED /tmp/sdt-live-timer-proof/repo/docs/estate/ESTATE_ARCHIVE_INDEX.md
-Apr 18 17:23:23 novak-ansible-control env[1440977]: UPDATED /tmp/sdt-live-timer-proof/repo/docs/estate/ESTATE_DELTA.md
-Apr 18 17:23:23 novak-ansible-control env[1440977]: UPDATED /tmp/sdt-live-timer-proof/repo/docs/estate/ESTATE_TRENDS.md
-Apr 18 17:23:23 novak-ansible-control env[1440977]: UPDATED /tmp/sdt-live-timer-proof/repo/estate/archive/estate_refresh_history.ndjson
-Apr 18 17:23:23 novak-ansible-control systemd[1]: Finished sdt-live-proof-once.service - /usr/bin/env bash --noprofile --norc bin/estate-refresh-runner.sh alpha=/tmp/sdt-live-timer-proof/source.
+Apr 18 18:40:01 novak-ansible-control systemd[1]: Starting sdt-live-proof-once.service - /usr/bin/env bash --noprofile --norc bin/estate-refresh-runner.sh alpha=/tmp/sdt-live-timer-proof/source...
+Apr 18 18:40:01 novak-ansible-control env[1456734]: UPDATED /tmp/sdt-live-timer-proof/repo/docs/estate/ESTATE_HISTORY_SUMMARY.md
+Apr 18 18:40:01 novak-ansible-control env[1456734]: UPDATED /tmp/sdt-live-timer-proof/repo/docs/estate/ESTATE_PRIORITY_QUEUE.md
+Apr 18 18:40:01 novak-ansible-control env[1456734]: UPDATED /tmp/sdt-live-timer-proof/repo/docs/estate/ESTATE_ACTION_QUEUE.md
+Apr 18 18:40:01 novak-ansible-control env[1456734]: UPDATED /tmp/sdt-live-timer-proof/repo/docs/estate/ESTATE_INGEST_SUMMARY.md
+Apr 18 18:40:01 novak-ansible-control env[1456734]: UPDATED /tmp/sdt-live-timer-proof/repo/docs/estate/ESTATE_CATALOG.md
+Apr 18 18:40:01 novak-ansible-control env[1456734]: UPDATED /tmp/sdt-live-timer-proof/repo/docs/estate/ESTATE_REFRESH_STATUS.md
+Apr 18 18:40:01 novak-ansible-control env[1456734]: UPDATED /tmp/sdt-live-timer-proof/repo/docs/estate/ESTATE_ARCHIVE_INDEX.md
+Apr 18 18:40:01 novak-ansible-control env[1456734]: UPDATED /tmp/sdt-live-timer-proof/repo/docs/estate/ESTATE_DELTA.md
+Apr 18 18:40:01 novak-ansible-control env[1456734]: UPDATED /tmp/sdt-live-timer-proof/repo/docs/estate/ESTATE_TRENDS.md
+Apr 18 18:40:01 novak-ansible-control env[1456734]: UPDATED /tmp/sdt-live-timer-proof/repo/estate/archive/estate_refresh_history.ndjson
+Apr 18 18:40:01 novak-ansible-control systemd[1]: Finished sdt-live-proof-once.service - /usr/bin/env bash --noprofile --norc bin/estate-refresh-runner.sh alpha=/tmp/sdt-live-timer-proof/source.
 ```
 
 ## Fast truth

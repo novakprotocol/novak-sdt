@@ -1,7 +1,7 @@
 # SDT internal candidate proof
 
 ## Stamp
-2026-04-18 17:23:33 UTC
+2026-04-18 18:40:12 UTC
 
 ## Acceptance smoke
 - /tmp/sdt-internal-candidate-proof/01_acceptance.txt
