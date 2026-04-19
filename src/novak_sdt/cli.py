@@ -460,6 +460,23 @@ def build_parser() -> argparse.ArgumentParser:
     change_bundle.add_argument("--title", required=True, help="Human-readable change title")
     change_bundle.add_argument("--type", required=True, help="Change type, e.g. wording-change")
     change_bundle.add_argument("--why", required=True, help="Why the change is being made")
+    change_bundle.add_argument(
+        "--apply-proof",
+        action="store_true",
+        help="Append proof capture into the poststate and change record",
+    )
+    change_bundle.add_argument(
+        "--command",
+        action="append",
+        default=[],
+        help="Command to run in the target repo and capture into the proof bundle; may be repeated",
+    )
+    change_bundle.add_argument(
+        "--proof-ref",
+        action="append",
+        default=[],
+        help="Proof reference or artifact path to append; may be repeated",
+    )
     change_bundle.set_defaults(func=run_change_bundle)
 
     common = argparse.ArgumentParser(add_help=False)

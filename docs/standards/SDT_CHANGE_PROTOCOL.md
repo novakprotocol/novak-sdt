@@ -21,9 +21,17 @@ Every meaningful change should preserve:
 
 ## Minimum artifacts
 
-- `docs/changes/<date>-<slug>.md`
-- `docs/status/<CHANGE>_PRESTATE.md`
-- `docs/status/<CHANGE>_POSTSTATE.md`
+- docs/changes/<date>-<slug>.md
+- docs/status/<CHANGE>_PRESTATE.md
+- docs/status/<CHANGE>_POSTSTATE.md
+
+## Native CLI
+
+Scaffold only:
+sdt change-bundle --repo /path/to/repo --title "Rename Hello World to Hello Worlds" --type "wording-change" --why "Demonstrate structured SDT change scaffolding."
+
+Scaffold plus proof capture:
+sdt change-bundle --repo /path/to/repo --title "Rename Hello World to Hello Worlds" --type "wording-change" --why "Demonstrate proof capture." --apply-proof --command "python3 -m pytest -q tests" --command "bash bin/run-hello-world.sh" --proof-ref "docs/status/HELLO_WORLD_CHANGE_POSTSTATE.md"
 
 ## Goal
 
