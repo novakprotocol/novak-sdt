@@ -1,6 +1,6 @@
 # History Priority Queue
 
-- stamp_utc: 2026-04-19 19:13:01 UTC
+- stamp_utc: 2026-04-19 19:21:54 UTC
 
 ## Items
 - Tighten project intelligence scan hygiene by excluding .venv, node_modules, caches, site, build, dist, and other generated noise.

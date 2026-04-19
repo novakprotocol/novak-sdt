@@ -1,6 +1,6 @@
 # Missed Opportunities
 
-- stamp_utc: 2026-04-19 19:13:01 UTC
+- stamp_utc: 2026-04-19 19:21:54 UTC
 
 ## Items
 - No structured change records are present yet; that limits later human/AI reconstruction quality.
