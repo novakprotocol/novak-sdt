@@ -381,7 +381,7 @@ No failure patterns have been recorded yet.
 
 No missed opportunities have been recorded yet.
 """,
-"tools/sdt_shell_activate.sh": """#!/usr/bin/env bash
+"tools/sdt_shell_activate.sh": r"""#!/usr/bin/env bash
 set -Eeuo pipefail
 set +H
 
