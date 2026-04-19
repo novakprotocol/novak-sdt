@@ -6,7 +6,7 @@ REPO_DIR="${1:-$(pwd)}"
 
 cd "${REPO_DIR}"
 
-python3 tools/sdt_truth_refresh.py --repo "${REPO_DIR}"
+python3 "${SOURCE_ROOT}/tools/sdt_truth_refresh.py" --repo "${REPO_DIR}"
 
 git add \
   PROJECT_STATE.md \
