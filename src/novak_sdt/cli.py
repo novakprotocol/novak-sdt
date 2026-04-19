@@ -349,6 +349,30 @@ def apply_floor(root: Path, context: dict[str, str], overwrite: bool, include_re
     timer()
 
 
+
+
+def run_truth_refresh(root: Path) -> None:
+    tool_path = Path(__file__).resolve().parents[2] / "tools" / "sdt_truth_refresh.py"
+    if not tool_path.exists():
+        step(f"Truth refresh tool missing at {tool_path}; skipping")
+        return
+
+    step(f"Refreshing SDT truth surfaces for {root}")
+    result = subprocess.run(
+        [sys.executable, str(tool_path), "--repo", str(root)],
+        text=True,
+        capture_output=True,
+        check=False,
+    )
+
+    if result.stdout.strip():
+        print(result.stdout)
+    if result.stderr.strip():
+        print(result.stderr)
+
+    if result.returncode != 0:
+        raise SystemExit(result.returncode)
+
 def cmd_new(args: argparse.Namespace) -> int:
     root = Path(args.path).resolve()
     root.mkdir(parents=True, exist_ok=True)
@@ -377,6 +401,8 @@ def cmd_new(args: argparse.Namespace) -> int:
     step("DONE")
     print(f"repo_path={root}")
     timer()
+    run_truth_refresh(root)
+
     return 0
 
 
@@ -412,6 +438,8 @@ def cmd_baseline(args: argparse.Namespace) -> int:
     step("DONE")
     print(f"repo_path={root}")
     timer()
+    run_truth_refresh(root)
+
     return 0
 
 

@@ -1,7 +1,6 @@
 # Failure Patterns
 
-- stamp_utc: 2026-04-19 17:30:03 UTC
+- stamp_utc: 2026-04-19 18:55:19 UTC
 
 ## Items
-- No ATTEMPTS.ndjson evidence is present yet, so recurring execution failure patterns are not evidenced.
 - Trusted-floor discipline issue is present.
