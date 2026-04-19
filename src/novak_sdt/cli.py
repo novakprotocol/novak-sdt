@@ -473,6 +473,13 @@ def cmd_doctor(args: argparse.Namespace) -> int:
     return 0
 
 
+
+def cmd_script_refresh(args: argparse.Namespace) -> int:
+    script_path = Path(args.script).resolve()
+    result = write_script_outputs(script_path)
+    print(json.dumps(result, indent=2))
+    return 0
+
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(
         prog="sdt",
