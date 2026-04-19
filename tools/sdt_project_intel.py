@@ -6,6 +6,7 @@ import json
 from pathlib import Path
 
 from novak_sdt.project_intel import write_outputs
+from novak_sdt.history_intel import write_history_outputs
 
 
 def main() -> int:
@@ -20,7 +21,8 @@ def main() -> int:
 
     repo = Path(args.repo).resolve()
     result = write_outputs(repo=repo, apply_docs=not args.no_apply_docs)
-    print(json.dumps(result, indent=2))
+    history = write_history_outputs(repo)
+    print(json.dumps({"project_intel": result, "history_intel": history}, indent=2))
     return 0
 
 

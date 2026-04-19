@@ -1,16 +1,16 @@
 <!-- SDT:BEGIN inferred project state -->
 # Inferred Project State
 
-- stamp_utc: 2026-04-19 17:03:48 UTC
+- stamp_utc: 2026-04-19 17:12:52 UTC
 - repo_name: novak-sdt
 - repo_type: python-cli-repository (LIKELY)
 - primary_language: Python (LIKELY)
 - runtime: python (LIKELY)
-- head_commit: 8b307edba3c5eb9bf83aa56e596ab7fbb6ac892a
+- head_commit: 76bd86fe9a494e80a326f3cf8ac8aede44630a7a
 - latest_tag: v0.1.3-internal-rc5
 
 ## Current inferred state
-Repository scan found 19014 files, 0 change document(s), and latest tag v0.1.3-internal-rc5.
+Repository scan found 19019 files, 0 change document(s), and latest tag v0.1.3-internal-rc5.
 
 ## Top risks
 - placeholder-like text still exists in core truth docs

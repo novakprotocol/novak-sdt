@@ -1,14 +1,11 @@
 # History Index
 
-This page summarizes archived run attempts, outcomes, and next steps.
+- stamp_utc: 2026-04-19 17:12:52 UTC
 
-## Purpose
-
-Keep a durable, machine-readable, human-readable history of:
-
-- successful runs
-- failed runs
-- raw transcripts
-- archived scripts
-- patterns of repeated mistakes
-- missed opportunities
+## Core history docs
+- ATTEMPTS.ndjson
+- FAILURE_PATTERNS.md
+- MISSED_OPPORTUNITIES.md
+- HISTORY_PRIORITY_QUEUE.md
+- HISTORY_ACTION_QUEUE.md
+- HISTORY_REMEDIATION.md

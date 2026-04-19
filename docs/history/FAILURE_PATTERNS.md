@@ -1,12 +1,7 @@
 # Failure Patterns
 
-This page summarizes recurring failure modes discovered from archived run logs.
+- stamp_utc: 2026-04-19 17:12:52 UTC
 
-Examples:
-
-- missing files
-- missing tools
-- auth failures
-- path mistakes
-- permission mistakes
-- wrong host mistakes
+## Items
+- No ATTEMPTS.ndjson evidence is present yet, so recurring execution failure patterns are not evidenced.
+- Run path inference is still unresolved.

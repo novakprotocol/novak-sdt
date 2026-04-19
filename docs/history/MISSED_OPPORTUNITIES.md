@@ -1,8 +1,7 @@
 # Missed Opportunities
 
-This page is the review surface for:
+- stamp_utc: 2026-04-19 17:12:52 UTC
 
-- repeated avoidable failures
-- skipped hardening
-- places where wrappers should have been written sooner
-- places where docs should have been updated sooner
+## Items
+- No structured change records are present yet; that limits later human/AI reconstruction quality.
+- No change bundle history is being used yet to enrich repo memory.
