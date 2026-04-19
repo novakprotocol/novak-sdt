@@ -43,6 +43,7 @@ def extended_required_floor_files() -> list[str]:
         "docs/estate/ESTATE_NOTIFICATIONS.md",
         "docs/estate/ESTATE_NOTIFICATION_STATUS.md",
         "docs/history/FAILURE_PATTERNS.md",
+        "docs/changes/CHANGE_INDEX.md",
         "docs/history/MISSED_OPPORTUNITIES.md",
         "docs/SDT_HISTORY_LANE.md",
         "tools/render_project_docs_status.py",
@@ -112,6 +113,7 @@ nav:
       - Estate Notification Status: estate/ESTATE_NOTIFICATION_STATUS.md
       - Failure Patterns: history/FAILURE_PATTERNS.md
       - Missed Opportunities: history/MISSED_OPPORTUNITIES.md
+      - Change Index: changes/CHANGE_INDEX.md
 """,
         "docs/index.md": """# {{PUBLIC_TITLE}}
 
@@ -354,6 +356,10 @@ Notify N1 is the minimum notification lane.
 "docs/history/FAILURE_PATTERNS.md": """# Failure Patterns
 
 No failure patterns have been recorded yet.
+""",
+        "docs/changes/CHANGE_INDEX.md": """# Change Index
+
+- Add change records here in chronological order.
 """,
 "docs/history/MISSED_OPPORTUNITIES.md": """# Missed Opportunities
 
