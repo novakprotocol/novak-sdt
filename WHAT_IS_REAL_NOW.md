@@ -1,3 +1,27 @@
+UNVERIFIED - operator confirmation required
+# Inferred What Is Real Now
+
+- repo path: `/root/novak-sdt`
+- product name: `novak-sdt`
+- run command: `build-backend`
+- test command: `python3 -m pytest -q tests`
+- docs command: `mkdocs serve`
+
+## Proven or likely facts
+- repo_type: `python-cli-repository` (LIKELY)
+- runtime: `python` (LIKELY)
+- entrypoints: `pyproject project.scripts` (LIKELY)
+- install_command: `python3 -m pip install -e .` (LIKELY)
+
+## Unknowns or confirmations needed
+- I inferred repo_type=python-cli-repository. Confirm or correct the repo class.
+- I inferred product_name=novak-sdt. Confirm the canonical product name.
+- I inferred run_command=build-backend. Confirm the main run path.
+- I inferred test_command=python3 -m pytest -q tests. Confirm the preferred verification command.
+- Confirm what this repo explicitly owns vs what is out of scope.
+- Confirm whether the inferred product statement matches the intended purpose.
+UNVERIFIED - operator confirmation required
+
 <!-- SDT:BEGIN inferred what is real now -->
 # Inferred What Is Real Now
 

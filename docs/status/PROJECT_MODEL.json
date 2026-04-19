@@ -1,5 +1,5 @@
 {
-  "stamp_utc": "2026-04-19 19:21:54 UTC",
+  "stamp_utc": "2026-04-19 22:03:54 UTC",
   "repo_path": "/root/novak-sdt",
   "repo_name": "novak-sdt",
   "product_name": {
@@ -25,8 +25,8 @@
     "value": "Python",
     "confidence": "LIKELY",
     "evidence": [
-      "Python files: 30 weighted_score=142",
-      "Shell files: 15 weighted_score=21",
+      "Python files: 33 weighted_score=149",
+      "Shell files: 18 weighted_score=24",
       "JavaScript files: 36 weighted_score=36"
     ]
   },
@@ -90,12 +90,12 @@
   },
   "current_state": {
     "name": "current_state",
-    "value": "Repository scan found 251 files, 0 change document(s), and latest tag v0.1.3-internal-rc5.",
+    "value": "Repository scan found 259 files, 0 change document(s), and latest tag trusted-floor-v1.",
     "confidence": "LIKELY",
     "evidence": [
-      "file_count=251",
+      "file_count=259",
       "change_doc_count=0",
-      "latest_tag=v0.1.3-internal-rc5"
+      "latest_tag=trusted-floor-v1"
     ]
   },
   "system_boundary": {
@@ -122,7 +122,7 @@
     "README.md contains placeholder-like text matching <[^>\\n]+>"
   ],
   "change_doc_count": 0,
-  "trusted_floor_status": "HEAD_AHEAD_OR_TAG_UNKNOWN",
-  "latest_tag": "v0.1.3-internal-rc5",
-  "head_commit": "340bf58af9a7ec1fa6d40d42b781668931ee5a7a"
+  "trusted_floor_status": "HEAD_EQUALS_LATEST_TAG",
+  "latest_tag": "trusted-floor-v1",
+  "head_commit": "19839aedfd8c5da0895b9ba441bc9d7236882233"
 }
