@@ -1,5 +1,5 @@
 {
-  "stamp_utc": "2026-04-19 17:01:08 UTC",
+  "stamp_utc": "2026-04-19 17:03:48 UTC",
   "repo_path": "/root/novak-sdt",
   "repo_name": "novak-sdt",
   "product_name": {
@@ -90,10 +90,10 @@
   },
   "current_state": {
     "name": "current_state",
-    "value": "Repository scan found 19006 files, 0 change document(s), and latest tag v0.1.3-internal-rc5.",
+    "value": "Repository scan found 19014 files, 0 change document(s), and latest tag v0.1.3-internal-rc5.",
     "confidence": "LIKELY",
     "evidence": [
-      "file_count=19006",
+      "file_count=19014",
       "change_doc_count=0",
       "latest_tag=v0.1.3-internal-rc5"
     ]
@@ -120,14 +120,14 @@
     "Confirm whether the inferred product statement matches the intended purpose."
   ],
   "placeholders_detected": [
-    "PROJECT_STATE.md missing",
-    "WHAT_IS_REAL_NOW.md missing",
+    "PROJECT_STATE.md contains placeholder-like text matching <[^>\\n]+>",
+    "WHAT_IS_REAL_NOW.md contains placeholder-like text matching <[^>\\n]+>",
     "README.md contains placeholder-like text matching <[^>\\n]+>",
-    "docs/product/PRODUCT_STATEMENT.md missing",
-    "docs/INSTALLATION.md missing"
+    "docs/product/PRODUCT_STATEMENT.md contains placeholder-like text matching <[^>\\n]+>",
+    "docs/INSTALLATION.md contains placeholder-like text matching <[^>\\n]+>"
   ],
   "change_doc_count": 0,
   "trusted_floor_status": "HEAD_AHEAD_OR_TAG_UNKNOWN",
   "latest_tag": "v0.1.3-internal-rc5",
-  "head_commit": "aeb4ed9bd5fa89f61c23df95dd6133764c4cdcad"
+  "head_commit": "8b307edba3c5eb9bf83aa56e596ab7fbb6ac892a"
 }
