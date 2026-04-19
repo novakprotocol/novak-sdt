@@ -160,15 +160,6 @@ def infer_product_name(repo: Path) -> InferredField:
     evidence = [f"repo directory name: {repo.name}"]
     fallback = repo.name.replace("-", " ").replace("_", " ").title()
 
-    readme = repo / "README.md"
-    if readme.exists():
-        text = read_text_safe(readme)
-        match = re.search(r"^#\s+(.+)$", text, re.MULTILINE)
-        if match:
-            title = match.group(1).strip()
-            if title:
-                return InferredField("product_name", title, "LIKELY", evidence + ["README title"])
-
     pyproject = repo / "pyproject.toml"
     if pyproject.exists():
         text = read_text_safe(pyproject)
@@ -185,6 +176,15 @@ def infer_product_name(repo: Path) -> InferredField:
                 return InferredField("product_name", name.strip(), "LIKELY", evidence + ["package.json name field"])
         except Exception:
             pass
+
+    readme = repo / "README.md"
+    if readme.exists():
+        text = read_text_safe(readme)
+        match = re.search(r"^#\s+(.+)$", text, re.MULTILINE)
+        if match:
+            title = match.group(1).strip()
+            if title:
+                return InferredField("product_name", title, "LIKELY", evidence + ["README title"])
 
     return InferredField("product_name", fallback, "LIKELY", evidence)
 
