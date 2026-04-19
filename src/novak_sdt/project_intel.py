@@ -4,10 +4,36 @@ from dataclasses import dataclass, asdict
 from datetime import UTC, datetime
 from pathlib import Path
 import json
+import os
 import re
 import subprocess
 from typing import Any
 
+
+IGNORED_DIRS = {
+    ".git",
+    ".venv",
+    "venv",
+    "__pycache__",
+    ".pytest_cache",
+    ".mypy_cache",
+    ".ruff_cache",
+    ".tox",
+    "node_modules",
+    "site",
+    "dist",
+    "build",
+    ".idea",
+    ".vscode",
+    ".coverage",
+    "htmlcov",
+}
+
+IGNORED_FILE_SUFFIXES = {
+    ".pyc",
+    ".pyo",
+    ".coverage",
+}
 
 PLACEHOLDER_PATTERNS = [
     re.compile(r"\bfill in\b", re.IGNORECASE),
@@ -71,15 +97,20 @@ def git_output(repo: Path, *args: str) -> str:
 
 def list_files(repo: Path) -> list[Path]:
     files: list[Path] = []
-    for path in repo.rglob("*"):
-        if ".git" in path.parts:
-            continue
-        if path.is_file():
+    for root, dirs, filenames in os.walk(repo):
+        dirs[:] = [d for d in dirs if d not in IGNORED_DIRS]
+        root_path = Path(root)
+        for name in filenames:
+            if any(part in IGNORED_DIRS for part in root_path.parts):
+                continue
+            path = root_path / name
+            if path.suffix.lower() in IGNORED_FILE_SUFFIXES:
+                continue
             files.append(path)
     return files
 
 
-def read_text_safe(path: Path, limit: int = 200_000) -> str:
+def read_text_safe(path: Path, limit: int = 250_000) -> str:
     try:
         return path.read_text(encoding="utf-8", errors="ignore")[:limit]
     except Exception:
@@ -90,21 +121,60 @@ def exists_any(repo: Path, *names: str) -> bool:
     return any((repo / name).exists() for name in names)
 
 
+def strip_managed_sections(text: str) -> str:
+    text = re.sub(
+        r"<!-- SDT:BEGIN .*?-->.*?<!-- SDT:END .*?-->",
+        "",
+        text,
+        flags=re.DOTALL,
+    )
+    text = re.sub(r"<!--.*?-->", "", text, flags=re.DOTALL)
+    return text
+
+
+def detect_placeholders(repo: Path) -> list[str]:
+    targets = [
+        repo / "PROJECT_STATE.md",
+        repo / "WHAT_IS_REAL_NOW.md",
+        repo / "README.md",
+        repo / "docs/product/PRODUCT_STATEMENT.md",
+        repo / "docs/INSTALLATION.md",
+    ]
+    findings: list[str] = []
+
+    for path in targets:
+        if not path.exists():
+            findings.append(f"{path.relative_to(repo)} missing")
+            continue
+
+        text = strip_managed_sections(read_text_safe(path))
+        for pattern in PLACEHOLDER_PATTERNS:
+            if pattern.search(text):
+                findings.append(f"{path.relative_to(repo)} contains placeholder-like text matching {pattern.pattern}")
+                break
+
+    return findings
+
+
 def infer_product_name(repo: Path) -> InferredField:
     evidence = [f"repo directory name: {repo.name}"]
     fallback = repo.name.replace("-", " ").replace("_", " ").title()
+
+    readme = repo / "README.md"
+    if readme.exists():
+        text = read_text_safe(readme)
+        match = re.search(r"^#\s+(.+)$", text, re.MULTILINE)
+        if match:
+            title = match.group(1).strip()
+            if title:
+                return InferredField("product_name", title, "LIKELY", evidence + ["README title"])
 
     pyproject = repo / "pyproject.toml"
     if pyproject.exists():
         text = read_text_safe(pyproject)
         match = re.search(r'^\s*name\s*=\s*"([^"]+)"', text, re.MULTILINE)
         if match:
-            return InferredField(
-                name="product_name",
-                value=match.group(1),
-                confidence="LIKELY",
-                evidence=evidence + ["pyproject.toml name field"],
-            )
+            return InferredField("product_name", match.group(1), "LIKELY", evidence + ["pyproject.toml name field"])
 
     package_json = repo / "package.json"
     if package_json.exists():
@@ -112,25 +182,29 @@ def infer_product_name(repo: Path) -> InferredField:
             data = json.loads(read_text_safe(package_json))
             name = data.get("name")
             if isinstance(name, str) and name.strip():
-                return InferredField(
-                    name="product_name",
-                    value=name.strip(),
-                    confidence="LIKELY",
-                    evidence=evidence + ["package.json name field"],
-                )
+                return InferredField("product_name", name.strip(), "LIKELY", evidence + ["package.json name field"])
         except Exception:
             pass
 
-    return InferredField(
-        name="product_name",
-        value=fallback,
-        confidence="LIKELY",
-        evidence=evidence,
-    )
+    return InferredField("product_name", fallback, "LIKELY", evidence)
 
 
-def infer_primary_language(repo: Path, files: list[Path]) -> InferredField:
-    counts = {
+def language_weight(path: Path) -> int:
+    path_str = str(path)
+    weight = 1
+    if "/app/" in path_str or "/src/" in path_str:
+        weight += 8
+    if "/tests/" in path_str:
+        weight += 4
+    if "/bin/" in path_str:
+        weight += 1
+    if path.name in {"main.py", "app.py"}:
+        weight += 6
+    return weight
+
+
+def infer_primary_language(files: list[Path]) -> InferredField:
+    scores = {
         "Python": 0,
         "Shell": 0,
         "JavaScript": 0,
@@ -138,52 +212,45 @@ def infer_primary_language(repo: Path, files: list[Path]) -> InferredField:
         "Go": 0,
         "Rust": 0,
     }
+    raw_counts = {key: 0 for key in scores}
 
     for path in files:
         suffix = path.suffix.lower()
+        weight = language_weight(path)
         if suffix == ".py":
-            counts["Python"] += 1
+            scores["Python"] += weight
+            raw_counts["Python"] += 1
         elif suffix in {".sh", ".bash"}:
-            counts["Shell"] += 1
+            scores["Shell"] += weight
+            raw_counts["Shell"] += 1
         elif suffix == ".js":
-            counts["JavaScript"] += 1
+            scores["JavaScript"] += weight
+            raw_counts["JavaScript"] += 1
         elif suffix in {".ts", ".tsx"}:
-            counts["TypeScript"] += 1
+            scores["TypeScript"] += weight
+            raw_counts["TypeScript"] += 1
         elif suffix == ".go":
-            counts["Go"] += 1
+            scores["Go"] += weight
+            raw_counts["Go"] += 1
         elif suffix == ".rs":
-            counts["Rust"] += 1
+            scores["Rust"] += weight
+            raw_counts["Rust"] += 1
 
-    top = max(counts, key=counts.get)
-    if counts[top] == 0:
-        return InferredField(
-            name="primary_language",
-            value="unknown",
-            confidence="UNKNOWN",
-            evidence=["no recognized language markers found"],
-        )
+    top = max(scores, key=scores.get)
+    if scores[top] == 0:
+        return InferredField("primary_language", "unknown", "UNKNOWN", ["no recognized language markers found"])
 
-    evidence = [f"{name} files: {count}" for name, count in counts.items() if count > 0]
-    return InferredField(
-        name="primary_language",
-        value=top,
-        confidence="LIKELY",
-        evidence=evidence,
-    )
+    evidence = []
+    for name in scores:
+        if raw_counts[name] > 0:
+            evidence.append(f"{name} files: {raw_counts[name]} weighted_score={scores[name]}")
+    return InferredField("primary_language", top, "LIKELY", evidence)
 
 
 def infer_repo_type(repo: Path) -> InferredField:
     evidence: list[str] = []
 
-    if (repo / "mkdocs.yml").exists() and not exists_any(repo, "pyproject.toml", "package.json", "app", "src"):
-        return InferredField(
-            name="repo_type",
-            value="documentation-site",
-            confidence="LIKELY",
-            evidence=["mkdocs.yml present"],
-        )
-
-    if exists_any(repo, "pyproject.toml"):
+    if (repo / "pyproject.toml").exists():
         evidence.append("pyproject.toml present")
         text = read_text_safe(repo / "pyproject.toml")
         if "fastapi" in text.lower() or "flask" in text.lower():
@@ -196,57 +263,37 @@ def infer_repo_type(repo: Path) -> InferredField:
 
     if (repo / "package.json").exists():
         evidence.append("package.json present")
-        pkg = read_text_safe(repo / "package.json").lower()
-        if "next" in pkg:
-            evidence.append("Next.js marker present")
-            return InferredField("repo_type", "web-application-repository", "LIKELY", evidence)
         return InferredField("repo_type", "node-repository", "LIKELY", evidence)
 
     if (repo / "app").exists() or (repo / "src").exists():
-        return InferredField(
-            name="repo_type",
-            value="application-repository",
-            confidence="LIKELY",
-            evidence=["app/ or src/ directory present"],
-        )
+        evidence.append("app/ or src/ present")
+        return InferredField("repo_type", "application-repository", "LIKELY", evidence)
 
     if (repo / "ops").exists() and (repo / "bin").exists():
-        return InferredField(
-            name="repo_type",
-            value="operations-and-automation-repository",
-            confidence="LIKELY",
-            evidence=["ops/ and bin/ present"],
-        )
+        evidence.append("ops/ and bin/ present")
+        return InferredField("repo_type", "operations-and-automation-repository", "LIKELY", evidence)
 
-    return InferredField(
-        name="repo_type",
-        value="unknown",
-        confidence="UNKNOWN",
-        evidence=["no decisive repo type markers found"],
-    )
+    if (repo / "mkdocs.yml").exists():
+        evidence.append("mkdocs.yml present")
+        return InferredField("repo_type", "documentation-site", "LIKELY", evidence)
+
+    return InferredField("repo_type", "unknown", "UNKNOWN", ["no decisive repo type markers found"])
 
 
-def infer_runtime(repo: Path) -> InferredField:
+def infer_runtime(repo: Path, files: list[Path]) -> InferredField:
     evidence: list[str] = []
 
     if (repo / ".venv").exists():
         evidence.append(".venv present")
-
     if exists_any(repo, "pyproject.toml", "requirements.txt"):
-        evidence.append("python dependency marker present")
+        evidence.append("python manifest present")
         return InferredField("runtime", "python", "LIKELY", evidence)
-
+    if any(path.suffix.lower() == ".py" for path in files):
+        evidence.append("python source files present")
+        return InferredField("runtime", "python", "LIKELY", evidence)
     if (repo / "package.json").exists():
         evidence.append("package.json present")
         return InferredField("runtime", "node", "LIKELY", evidence)
-
-    if (repo / "go.mod").exists():
-        evidence.append("go.mod present")
-        return InferredField("runtime", "go", "LIKELY", evidence)
-
-    if (repo / "Cargo.toml").exists():
-        evidence.append("Cargo.toml present")
-        return InferredField("runtime", "rust", "LIKELY", evidence)
 
     return InferredField("runtime", "unknown", "UNKNOWN", ["no runtime markers found"])
 
@@ -274,56 +321,34 @@ def infer_entrypoints(repo: Path) -> InferredField:
             entries.append("pyproject project.scripts")
             evidence.append("pyproject [project.scripts] section present")
 
-    package_json = repo / "package.json"
-    if package_json.exists():
-        try:
-            data = json.loads(read_text_safe(package_json))
-            scripts = data.get("scripts", {})
-            if isinstance(scripts, dict):
-                for name in ("start", "dev", "build", "test"):
-                    if name in scripts:
-                        entries.append(f"package.json::{name}")
-                        evidence.append(f"package.json script present: {name}")
-        except Exception:
-            pass
-
     if not entries:
         return InferredField("entrypoints", "unknown", "UNKNOWN", ["no clear entrypoints found"])
 
     return InferredField("entrypoints", ", ".join(entries), "LIKELY", evidence)
 
 
-def infer_install_command(repo: Path) -> InferredField:
+def infer_install_command(repo: Path, runtime: str) -> InferredField:
     if (repo / "pyproject.toml").exists():
         return InferredField("install_command", "python3 -m pip install -e .", "LIKELY", ["pyproject.toml present"])
     if (repo / "requirements.txt").exists():
         return InferredField("install_command", "python3 -m pip install -r requirements.txt", "LIKELY", ["requirements.txt present"])
     if (repo / "package.json").exists():
         return InferredField("install_command", "npm install", "LIKELY", ["package.json present"])
+    if runtime == "python":
+        return InferredField("install_command", "no dependency install evidenced; python3 only", "LIKELY", ["python runtime inferred without manifest"])
     return InferredField("install_command", "unknown", "UNKNOWN", ["no install markers found"])
 
 
 def infer_test_command(repo: Path) -> InferredField:
     tests_dir = repo / "tests"
-
     if (repo / "pyproject.toml").exists():
         text = read_text_safe(repo / "pyproject.toml")
         if "pytest" in text.lower() or tests_dir.exists():
-            return InferredField(
-                "test_command",
-                "python3 -m pytest -q tests",
-                "LIKELY",
-                ["pytest marker or tests/ directory present"],
-            )
-
+            return InferredField("test_command", "python3 -m pytest -q tests", "LIKELY", ["pytest marker or tests/ present"])
     if tests_dir.exists():
-        return InferredField(
-            "test_command",
-            "python3 -m unittest discover -s tests -p 'test*.py'",
-            "LIKELY",
-            ["tests/ directory present"],
-        )
-
+        py_tests = list(tests_dir.glob("test*.py"))
+        if py_tests:
+            return InferredField("test_command", "python3 -m unittest discover -s tests -p 'test*.py'", "LIKELY", ["tests/ python files present"])
     if (repo / "package.json").exists():
         try:
             data = json.loads(read_text_safe(repo / "package.json"))
@@ -332,30 +357,21 @@ def infer_test_command(repo: Path) -> InferredField:
                 return InferredField("test_command", "npm test", "LIKELY", ["package.json test script present"])
         except Exception:
             pass
-
     return InferredField("test_command", "unknown", "UNKNOWN", ["no test markers found"])
 
 
-def infer_run_command(repo: Path) -> InferredField:
+def infer_run_command(repo: Path, runtime: str) -> InferredField:
     if (repo / "bin/run-hello-world.sh").exists():
         return InferredField("run_command", "bash bin/run-hello-world.sh", "LIKELY", ["bin/run-hello-world.sh present"])
     if (repo / "app/main.py").exists():
         return InferredField("run_command", "python3 app/main.py", "LIKELY", ["app/main.py present"])
     if (repo / "main.py").exists():
         return InferredField("run_command", "python3 main.py", "LIKELY", ["main.py present"])
-
-    if (repo / "package.json").exists():
-        try:
-            data = json.loads(read_text_safe(repo / "package.json"))
-            scripts = data.get("scripts", {})
-            if isinstance(scripts, dict):
-                if "start" in scripts:
-                    return InferredField("run_command", "npm start", "LIKELY", ["package.json start script present"])
-                if "dev" in scripts:
-                    return InferredField("run_command", "npm run dev", "LIKELY", ["package.json dev script present"])
-        except Exception:
-            pass
-
+    if runtime == "python" and (repo / "pyproject.toml").exists():
+        text = read_text_safe(repo / "pyproject.toml")
+        match = re.search(r'^\s*([A-Za-z0-9_.-]+)\s*=\s*".+"', text, re.MULTILINE)
+        if "[project.scripts]" in text and match:
+            return InferredField("run_command", f"{match.group(1)}", "LIKELY", ["pyproject project.scripts present"])
     return InferredField("run_command", "unknown", "UNKNOWN", ["no run markers found"])
 
 
@@ -367,61 +383,17 @@ def infer_docs_command(repo: Path) -> InferredField:
 
 def infer_product_statement(product_name: str, repo_type: str, primary_language: str) -> InferredField:
     value = f"{product_name} is a {repo_type.replace('-', ' ')} primarily implemented in {primary_language}."
-    return InferredField(
-        "product_statement",
-        value,
-        "LIKELY",
-        [f"repo_type={repo_type}", f"primary_language={primary_language}"],
-    )
+    return InferredField("product_statement", value, "LIKELY", [f"repo_type={repo_type}", f"primary_language={primary_language}"])
 
 
 def infer_current_state(files: list[Path], change_doc_count: int, latest_tag: str) -> InferredField:
-    value = (
-        f"Repository scan found {len(files)} files, "
-        f"{change_doc_count} change document(s), and latest tag {latest_tag}."
-    )
-    return InferredField(
-        "current_state",
-        value,
-        "LIKELY",
-        [f"file_count={len(files)}", f"change_doc_count={change_doc_count}", f"latest_tag={latest_tag}"],
-    )
+    value = f"Repository scan found {len(files)} files, {change_doc_count} change document(s), and latest tag {latest_tag}."
+    return InferredField("current_state", value, "LIKELY", [f"file_count={len(files)}", f"change_doc_count={change_doc_count}", f"latest_tag={latest_tag}"])
 
 
 def infer_system_boundary(repo_type: str, runtime: str) -> InferredField:
-    value = (
-        f"This repo appears to own a {repo_type.replace('-', ' ')} built or run with {runtime}. "
-        "Production infrastructure, credentials, and external services are not assumed unless directly evidenced."
-    )
-    return InferredField(
-        "system_boundary",
-        value,
-        "LIKELY",
-        [f"repo_type={repo_type}", f"runtime={runtime}"],
-    )
-
-
-def detect_placeholders(repo: Path) -> list[str]:
-    targets = [
-        repo / "PROJECT_STATE.md",
-        repo / "WHAT_IS_REAL_NOW.md",
-        repo / "README.md",
-        repo / "docs/product/PRODUCT_STATEMENT.md",
-        repo / "docs/INSTALLATION.md",
-    ]
-    findings: list[str] = []
-
-    for path in targets:
-        if not path.exists():
-            findings.append(f"{path.relative_to(repo)} missing")
-            continue
-        text = read_text_safe(path)
-        for pattern in PLACEHOLDER_PATTERNS:
-            if pattern.search(text):
-                findings.append(f"{path.relative_to(repo)} contains placeholder-like text matching {pattern.pattern}")
-                break
-
-    return findings
+    value = f"This repo appears to own a {repo_type.replace('-', ' ')} built or run with {runtime}. Production infrastructure, credentials, and external services are not assumed unless directly evidenced."
+    return InferredField("system_boundary", value, "LIKELY", [f"repo_type={repo_type}", f"runtime={runtime}"])
 
 
 def build_confirmations(model: dict[str, Any]) -> list[str]:
@@ -440,77 +412,6 @@ def build_confirmations(model: dict[str, Any]) -> list[str]:
     maybe_add("product_statement", "Confirm whether the inferred product statement matches the intended purpose.")
 
     return prompts[:10]
-
-
-def completeness_score(model: dict[str, Any]) -> tuple[int, list[str]]:
-    issues: list[str] = []
-    score = 100
-
-    required_fields = [
-        "product_name",
-        "repo_type",
-        "primary_language",
-        "runtime",
-        "install_command",
-        "test_command",
-        "run_command",
-        "product_statement",
-        "current_state",
-        "system_boundary",
-    ]
-
-    for field_name in required_fields:
-        field = model[field_name]
-        if field["value"] == "unknown":
-            score -= 10
-            issues.append(f"{field_name} is unknown")
-        elif field["confidence"] == "UNKNOWN":
-            score -= 8
-            issues.append(f"{field_name} confidence unknown")
-        elif field["confidence"] == "LIKELY":
-            score -= 2
-
-    placeholder_count = len(model["placeholders_detected"])
-    if placeholder_count:
-        score -= min(20, placeholder_count * 4)
-        issues.extend(model["placeholders_detected"])
-
-    if model["change_doc_count"] == 0:
-        score -= 5
-        issues.append("no change documents detected")
-
-    score = max(0, score)
-    return score, issues
-
-
-def build_drift_findings(repo: Path, model: dict[str, Any]) -> list[str]:
-    findings: list[str] = []
-
-    readme = read_text_safe(repo / "README.md")
-    if "Operator shell entry" not in readme and (repo / "tools/install_novak_shell_shortcuts.sh").exists():
-        findings.append("README.md does not mention operator shell entry even though shortcut installer exists")
-
-    product_doc = read_text_safe(repo / "docs/product/PRODUCT_STATEMENT.md")
-    inferred_name = model["product_name"]["value"]
-    if inferred_name not in product_doc:
-        findings.append("docs/product/PRODUCT_STATEMENT.md does not mention inferred product name")
-
-    current_state_doc = read_text_safe(repo / "PROJECT_STATE.md")
-    if "SDT:BEGIN inferred project state" not in current_state_doc:
-        findings.append("PROJECT_STATE.md missing managed inferred project state section")
-
-    what_is_real_doc = read_text_safe(repo / "WHAT_IS_REAL_NOW.md")
-    if "SDT:BEGIN inferred what is real now" not in what_is_real_doc:
-        findings.append("WHAT_IS_REAL_NOW.md missing managed inferred truth section")
-
-    latest_tag = model["latest_tag"]
-    head_commit = model["head_commit"]
-    if latest_tag != "unknown":
-        tag_commit = git_output(repo, "rev-list", "-n", "1", latest_tag)
-        if tag_commit != "unknown" and tag_commit != head_commit:
-            findings.append(f"HEAD {head_commit} is ahead of latest tag {latest_tag}")
-
-    return findings
 
 
 def managed_section(doc_path: Path, section_name: str, body: str) -> None:
@@ -534,14 +435,8 @@ def managed_section(doc_path: Path, section_name: str, body: str) -> None:
 
 
 def render_project_state(model: dict[str, Any]) -> str:
-    risk_lines = [f"- {item}" for item in model["top_risks"]]
-    if not risk_lines:
-        risk_lines = ["- none detected"]
-
-    confirm_lines = [f"- {item}" for item in model["confirmations_needed"]]
-    if not confirm_lines:
-        confirm_lines = ["- none"]
-
+    risks = [f"- {item}" for item in model["top_risks"]] or ["- none detected"]
+    confirms = [f"- {item}" for item in model["confirmations_needed"]] or ["- none"]
     lines = [
         "# Inferred Project State",
         "",
@@ -558,17 +453,14 @@ def render_project_state(model: dict[str, Any]) -> str:
         "",
         "## Top risks",
     ]
-    lines.extend(risk_lines)
+    lines.extend(risks)
     lines.extend(["", "## Confirmation needed"])
-    lines.extend(confirm_lines)
+    lines.extend(confirms)
     return "\n".join(lines)
 
 
 def render_what_is_real_now(model: dict[str, Any]) -> str:
-    unknown_lines = [f"- {item}" for item in model["confirmations_needed"]]
-    if not unknown_lines:
-        unknown_lines = ["- none"]
-
+    unknowns = [f"- {item}" for item in model["confirmations_needed"]] or ["- none"]
     lines = [
         "# Inferred What Is Real Now",
         "",
@@ -586,7 +478,7 @@ def render_what_is_real_now(model: dict[str, Any]) -> str:
         "",
         "## Unknowns or confirmations needed",
     ]
-    lines.extend(unknown_lines)
+    lines.extend(unknowns)
     return "\n".join(lines)
 
 
@@ -672,17 +564,72 @@ def render_drift_report(model: dict[str, Any], findings: list[str]) -> str:
     return "\n".join(lines)
 
 
+def completeness_score(model: dict[str, Any]) -> tuple[int, list[str]]:
+    issues: list[str] = []
+    score = 100
+
+    for field_name in [
+        "product_name",
+        "repo_type",
+        "primary_language",
+        "runtime",
+        "install_command",
+        "test_command",
+        "run_command",
+        "product_statement",
+        "current_state",
+        "system_boundary",
+    ]:
+        field = model[field_name]
+        if field["value"] == "unknown":
+            score -= 10
+            issues.append(f"{field_name} is unknown")
+        elif field["confidence"] == "UNKNOWN":
+            score -= 8
+            issues.append(f"{field_name} confidence unknown")
+        elif field["confidence"] == "LIKELY":
+            score -= 2
+
+    placeholder_count = len(model["placeholders_detected"])
+    if placeholder_count:
+        score -= min(20, placeholder_count * 3)
+        issues.extend(model["placeholders_detected"])
+
+    if model["change_doc_count"] == 0:
+        score -= 5
+        issues.append("no change documents detected")
+
+    return max(score, 0), issues
+
+
+def build_drift_findings(repo: Path, model: dict[str, Any]) -> list[str]:
+    findings: list[str] = []
+
+    readme = read_text_safe(repo / "README.md")
+    if "Operator shell entry" not in readme and (repo / "tools/install_novak_shell_shortcuts.sh").exists():
+        findings.append("README.md does not mention operator shell entry even though shortcut installer exists")
+
+    latest_tag = model["latest_tag"]
+    head_commit = model["head_commit"]
+    if latest_tag != "unknown":
+        tag_commit = git_output(repo, "rev-list", "-n", "1", latest_tag)
+        if tag_commit != "unknown" and tag_commit != head_commit:
+            findings.append(f"HEAD {head_commit} is ahead of latest tag {latest_tag}")
+
+    return findings
+
+
 def build_project_model(repo: Path) -> ProjectModel:
     files = list_files(repo)
 
     product_name = infer_product_name(repo)
-    primary_language = infer_primary_language(repo, files)
+    primary_language = infer_primary_language(files)
     repo_type = infer_repo_type(repo)
-    runtime = infer_runtime(repo)
+    runtime = infer_runtime(repo, files)
     entrypoints = infer_entrypoints(repo)
-    install_command = infer_install_command(repo)
+    install_command = infer_install_command(repo, runtime.value)
     test_command = infer_test_command(repo)
-    run_command = infer_run_command(repo)
+    run_command = infer_run_command(repo, runtime.value)
     docs_command = infer_docs_command(repo)
 
     change_doc_count = len(list((repo / "docs/changes").glob("*.md"))) if (repo / "docs/changes").exists() else 0
@@ -697,9 +644,7 @@ def build_project_model(repo: Path) -> ProjectModel:
 
     top_risks: list[str] = []
     if placeholders:
-        top_risks.append("placeholder-like text still exists in core truth docs")
-    if test_command.value == "unknown":
-        top_risks.append("test command is not inferred")
+        top_risks.append("placeholder-like text still exists in unmanaged core truth docs")
     if run_command.value == "unknown":
         top_risks.append("run command is not inferred")
     if latest_tag == "unknown":
@@ -732,7 +677,6 @@ def build_project_model(repo: Path) -> ProjectModel:
         "latest_tag": latest_tag,
         "head_commit": head_commit,
     }
-
     base_model["confirmations_needed"] = build_confirmations(base_model)
 
     return ProjectModel(
@@ -792,35 +736,27 @@ def write_outputs(repo: Path, apply_docs: bool = True) -> dict[str, Any]:
     model = build_project_model(repo)
     data = model_to_dict(model)
 
-    status_dir = repo / "docs/status"
-    status_dir.mkdir(parents=True, exist_ok=True)
-
-    (status_dir / "PROJECT_MODEL.json").write_text(
-        json.dumps(data, indent=2) + "\n",
-        encoding="utf-8",
-    )
-
-    score, issues = completeness_score(data)
-    drift_findings = build_drift_findings(repo, data)
-
-    (status_dir / "SDT_CONFIRMATION_PACKET.md").write_text(
-        render_confirmation_packet(data) + "\n",
-        encoding="utf-8",
-    )
-    (status_dir / "SDT_COMPLETENESS_REPORT.md").write_text(
-        render_completeness_report(data, score, issues) + "\n",
-        encoding="utf-8",
-    )
-    (status_dir / "SDT_DRIFT_REPORT.md").write_text(
-        render_drift_report(data, drift_findings) + "\n",
-        encoding="utf-8",
-    )
-
     if apply_docs:
         managed_section(repo / "PROJECT_STATE.md", "inferred project state", render_project_state(data))
         managed_section(repo / "WHAT_IS_REAL_NOW.md", "inferred what is real now", render_what_is_real_now(data))
         managed_section(repo / "docs/product/PRODUCT_STATEMENT.md", "inferred product statement", render_product_statement(data))
         managed_section(repo / "docs/INSTALLATION.md", "inferred installation", render_installation(data))
+
+        # recompute after writes so first-run reports reflect post-write truth
+        model = build_project_model(repo)
+        data = model_to_dict(model)
+
+    status_dir = repo / "docs/status"
+    status_dir.mkdir(parents=True, exist_ok=True)
+
+    (status_dir / "PROJECT_MODEL.json").write_text(json.dumps(data, indent=2) + "\n", encoding="utf-8")
+
+    score, issues = completeness_score(data)
+    drift_findings = build_drift_findings(repo, data)
+
+    (status_dir / "SDT_CONFIRMATION_PACKET.md").write_text(render_confirmation_packet(data) + "\n", encoding="utf-8")
+    (status_dir / "SDT_COMPLETENESS_REPORT.md").write_text(render_completeness_report(data, score, issues) + "\n", encoding="utf-8")
+    (status_dir / "SDT_DRIFT_REPORT.md").write_text(render_drift_report(data, drift_findings) + "\n", encoding="utf-8")
 
     return {
         "model": data,

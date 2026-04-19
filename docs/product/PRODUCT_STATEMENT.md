@@ -1,7 +1,7 @@
 <!-- SDT:BEGIN inferred product statement -->
 # Inferred Product Statement
 
-novak-sdt is a python cli repository primarily implemented in Python.
+S.D.T. (Software Digital Thread) is a python cli repository primarily implemented in Python.
 
 ## Confidence
 - LIKELY

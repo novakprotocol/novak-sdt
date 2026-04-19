@@ -5,7 +5,7 @@
 - `python3 -m pip install -e .`
 
 ## Likely run command
-- `unknown`
+- `build-backend`
 
 ## Likely test command
 - `python3 -m pytest -q tests`

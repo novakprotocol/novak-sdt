@@ -3,7 +3,6 @@ from __future__ import annotations
 from datetime import UTC, datetime
 from pathlib import Path
 import json
-import re
 from typing import Any
 
 
@@ -22,17 +21,16 @@ def read_attempts(repo: Path) -> list[dict[str, Any]]:
     path = repo / "docs/history/ATTEMPTS.ndjson"
     if not path.exists():
         return []
-
-    attempts: list[dict[str, Any]] = []
+    items: list[dict[str, Any]] = []
     for line in path.read_text(encoding="utf-8", errors="ignore").splitlines():
         line = line.strip()
         if not line:
             continue
         try:
-            attempts.append(json.loads(line))
+            items.append(json.loads(line))
         except Exception:
-            attempts.append({"raw": line, "parse_error": True})
-    return attempts
+            items.append({"raw": line, "parse_error": True})
+    return items
 
 
 def read_change_docs(repo: Path) -> list[Path]:
@@ -42,20 +40,20 @@ def read_change_docs(repo: Path) -> list[Path]:
     return sorted([p for p in change_dir.glob("*.md") if p.is_file()])
 
 
-def read_status_docs(repo: Path) -> dict[str, str]:
-    status_dir = repo / "docs/status"
-    if not status_dir.exists():
+def read_status_json(repo: Path) -> dict[str, Any]:
+    path = repo / "docs/status/PROJECT_MODEL.json"
+    if not path.exists():
         return {}
-    docs: dict[str, str] = {}
-    for path in sorted(status_dir.glob("*.md")):
-        docs[path.name] = read_text(path)
-    return docs
+    try:
+        return json.loads(path.read_text(encoding="utf-8"))
+    except Exception:
+        return {}
 
 
 def infer_failure_patterns(repo: Path) -> list[str]:
     findings: list[str] = []
     attempts = read_attempts(repo)
-    status_docs = read_status_docs(repo)
+    model = read_status_json(repo)
 
     if not attempts:
         findings.append("No ATTEMPTS.ndjson evidence is present yet, so recurring execution failure patterns are not evidenced.")
@@ -70,74 +68,61 @@ def infer_failure_patterns(repo: Path) -> list[str]:
                 fail_markers += 1
         if fail_markers:
             findings.append(f"{fail_markers} attempt records contain failure-like markers.")
-        else:
-            findings.append("Attempt records do not yet show obvious repeated failure markers.")
 
-    for name, text in status_docs.items():
-        lower = text.lower()
-        if "head is ahead of latest tag" in lower:
-            findings.append("Trusted-floor discipline issue: HEAD is ahead of the latest tag.")
-        if "placeholder-like text still exists" in lower:
-            findings.append("Core truth docs still contain placeholder-like content.")
-        if "run_command is unknown" in lower:
-            findings.append("Run path inference is still unresolved.")
+    if model.get("run_command", {}).get("value") == "unknown":
+        findings.append("Run path inference is still unresolved.")
+    if model.get("trusted_floor_status") == "HEAD_AHEAD_OR_TAG_UNKNOWN":
+        findings.append("Trusted-floor discipline issue is present.")
 
     return dedupe(findings)
 
 
 def infer_missed_opportunities(repo: Path) -> list[str]:
     findings: list[str] = []
-    status_docs = read_status_docs(repo)
+    model = read_status_json(repo)
     change_docs = read_change_docs(repo)
 
     if not change_docs:
         findings.append("No structured change records are present yet; that limits later human/AI reconstruction quality.")
 
-    for name, text in status_docs.items():
-        lower = text.lower()
-        if "missing managed inferred project state section" in lower:
-            findings.append("Managed inferred sections are not yet being written back consistently into PROJECT_STATE.md.")
-        if "missing managed inferred truth section" in lower:
-            findings.append("Managed inferred sections are not yet being written back consistently into WHAT_IS_REAL_NOW.md.")
-        if "docs/product/product_statement.md does not mention inferred product name" in lower:
-            findings.append("Product docs and inferred naming are drifting apart.")
-        if "runtime is unknown" in lower:
-            findings.append("Runtime inference remains weak; shell wrappers are probably outweighing application code.")
-        if "install_command is unknown" in lower:
-            findings.append("Install path inference remains weak; repo classification is not yet good enough.")
-        if "no change documents detected" in lower:
-            findings.append("No change bundle history is being used yet to enrich repo memory.")
+    if model.get("runtime", {}).get("value") == "unknown":
+        findings.append("Runtime inference remains weak; shell wrappers are probably outweighing application code.")
+    if model.get("install_command", {}).get("value") == "unknown":
+        findings.append("Install path inference remains weak; repo classification is not yet good enough.")
+    if model.get("trusted_floor_status") == "HEAD_AHEAD_OR_TAG_UNKNOWN":
+        findings.append("Trusted floor is not explicitly frozen at HEAD.")
+    if model.get("placeholders_detected"):
+        findings.append("Core truth docs still carry unmanaged placeholder-like content.")
+
     return dedupe(findings)
 
 
 def infer_priority_queue(repo: Path) -> list[str]:
-    priorities: list[str] = []
-
-    priorities.append("Tighten project intelligence scan hygiene by excluding .venv, node_modules, caches, site, build, dist, and other generated noise.")
-    priorities.append("Recompute completeness and drift after writing managed sections so first-run reports reflect post-write truth, not pre-write gaps.")
-    priorities.append("Weight runtime/language inference toward application code, imports, manifests, and entrypoints instead of shell wrappers.")
-    priorities.append("Wire history intelligence into every serious SDT run so FAILURE_PATTERNS, MISSED_OPPORTUNITIES, and queues are continuously re-derived.")
-    priorities.append("Generate or refresh change records automatically when meaningful repo mutations happen without a matching change document.")
-    priorities.append("Track trusted floor explicitly when HEAD moves past the latest tag.")
-
-    return dedupe(priorities)
+    return [
+        "Tighten project intelligence scan hygiene by excluding .venv, node_modules, caches, site, build, dist, and other generated noise.",
+        "Weight runtime/language inference toward application code, imports, manifests, and entrypoints instead of shell wrappers.",
+        "Force birth and baseline to run truth refresh immediately after floor creation.",
+        "Generate or refresh change records automatically when meaningful repo mutations happen without a matching change document.",
+        "Track trusted floor explicitly when HEAD moves past the latest tag.",
+        "Append attempt records automatically from truth-refresh and proof runs.",
+    ]
 
 
 def infer_action_queue(repo: Path) -> list[str]:
     return [
-        "Run project intelligence and history intelligence on novak-sdt after every proof pass.",
-        "Run the same intelligence pass on hello-world-sdt and hello-world-sdt-rc4 after meaningful updates.",
-        "Add a birth hook so new repos get an immediate first-draft PROJECT_STATE and WHAT_IS_REAL_NOW instead of blank placeholders.",
+        "Run truth refresh on novak-sdt after every proof pass.",
+        "Run the same truth refresh on hello-world-sdt and hello-world-sdt-rc4 after meaningful updates.",
+        "Add a birth hook so new repos get immediate PROJECT_STATE and WHAT_IS_REAL_NOW drafts instead of blank placeholders.",
         "Add a baseline hook so adopted repos get inferred truth plus a confirmation packet.",
     ]
 
 
 def infer_remediation(repo: Path) -> list[str]:
     return [
-        "Patch project_intel.py to ignore generated noise and recompute drift after managed writes.",
-        "Patch project_intel.py to infer Python runtime for hello-world specimens from application files and tests.",
-        "Add history_intel.py output generation into the SDT proof path.",
-        "Add a trusted-floor status doc that explicitly states the current trusted floor, latest tag, and whether HEAD is ahead.",
+        "Patch project_intel.py to infer Python for hello-world specimens from application files and tests.",
+        "Patch project_intel.py to produce canonical product names from repo truth, not raw title casing.",
+        "Patch proof flow to call truth refresh automatically.",
+        "Patch change bundle flow to update attempts/history surfaces automatically.",
     ]
 
 
@@ -152,12 +137,12 @@ def dedupe(items: list[str]) -> list[str]:
 
 
 def write_doc(path: Path, title: str, bullets: list[str]) -> None:
-    body = [f"# {title}", "", f"- stamp_utc: {now_utc()}", "", "## Items"]
+    lines = [f"# {title}", "", f"- stamp_utc: {now_utc()}", "", "## Items"]
     if bullets:
-        body.extend([f"- {item}" for item in bullets])
+        lines.extend([f"- {item}" for item in bullets])
     else:
-        body.append("- none")
-    path.write_text("\n".join(body) + "\n", encoding="utf-8")
+        lines.append("- none")
+    path.write_text("\n".join(lines) + "\n", encoding="utf-8")
 
 
 def write_history_outputs(repo: Path) -> dict[str, Any]:

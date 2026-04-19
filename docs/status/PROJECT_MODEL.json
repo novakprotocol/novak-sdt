@@ -1,14 +1,14 @@
 {
-  "stamp_utc": "2026-04-19 17:12:52 UTC",
+  "stamp_utc": "2026-04-19 17:30:03 UTC",
   "repo_path": "/root/novak-sdt",
   "repo_name": "novak-sdt",
   "product_name": {
     "name": "product_name",
-    "value": "novak-sdt",
+    "value": "S.D.T. (Software Digital Thread)",
     "confidence": "LIKELY",
     "evidence": [
       "repo directory name: novak-sdt",
-      "pyproject.toml name field"
+      "README title"
     ]
   },
   "repo_type": {
@@ -25,9 +25,9 @@
     "value": "Python",
     "confidence": "LIKELY",
     "evidence": [
-      "Python files: 1366",
-      "Shell files: 14",
-      "JavaScript files: 115"
+      "Python files: 27 weighted_score=127",
+      "Shell files: 16 weighted_score=22",
+      "JavaScript files: 36 weighted_score=36"
     ]
   },
   "runtime": {
@@ -36,7 +36,7 @@
     "confidence": "LIKELY",
     "evidence": [
       ".venv present",
-      "python dependency marker present"
+      "python manifest present"
     ]
   },
   "entrypoints": {
@@ -60,15 +60,15 @@
     "value": "python3 -m pytest -q tests",
     "confidence": "LIKELY",
     "evidence": [
-      "pytest marker or tests/ directory present"
+      "pytest marker or tests/ present"
     ]
   },
   "run_command": {
     "name": "run_command",
-    "value": "unknown",
-    "confidence": "UNKNOWN",
+    "value": "build-backend",
+    "confidence": "LIKELY",
     "evidence": [
-      "no run markers found"
+      "pyproject project.scripts present"
     ]
   },
   "docs_command": {
@@ -81,7 +81,7 @@
   },
   "product_statement": {
     "name": "product_statement",
-    "value": "novak-sdt is a python cli repository primarily implemented in Python.",
+    "value": "S.D.T. (Software Digital Thread) is a python cli repository primarily implemented in Python.",
     "confidence": "LIKELY",
     "evidence": [
       "repo_type=python-cli-repository",
@@ -90,10 +90,10 @@
   },
   "current_state": {
     "name": "current_state",
-    "value": "Repository scan found 19019 files, 0 change document(s), and latest tag v0.1.3-internal-rc5.",
+    "value": "Repository scan found 248 files, 0 change document(s), and latest tag v0.1.3-internal-rc5.",
     "confidence": "LIKELY",
     "evidence": [
-      "file_count=19019",
+      "file_count=248",
       "change_doc_count=0",
       "latest_tag=v0.1.3-internal-rc5"
     ]
@@ -108,26 +108,21 @@
     ]
   },
   "top_risks": [
-    "placeholder-like text still exists in core truth docs",
-    "run command is not inferred"
+    "placeholder-like text still exists in unmanaged core truth docs"
   ],
   "confirmations_needed": [
     "I inferred repo_type=python-cli-repository. Confirm or correct the repo class.",
-    "I inferred product_name=novak-sdt. Confirm the canonical product name.",
-    "I inferred run_command=unknown. Confirm the main run path.",
+    "I inferred product_name=S.D.T. (Software Digital Thread). Confirm the canonical product name.",
+    "I inferred run_command=build-backend. Confirm the main run path.",
     "I inferred test_command=python3 -m pytest -q tests. Confirm the preferred verification command.",
     "Confirm what this repo explicitly owns vs what is out of scope.",
     "Confirm whether the inferred product statement matches the intended purpose."
   ],
   "placeholders_detected": [
-    "PROJECT_STATE.md contains placeholder-like text matching <[^>\\n]+>",
-    "WHAT_IS_REAL_NOW.md contains placeholder-like text matching <[^>\\n]+>",
-    "README.md contains placeholder-like text matching <[^>\\n]+>",
-    "docs/product/PRODUCT_STATEMENT.md contains placeholder-like text matching <[^>\\n]+>",
-    "docs/INSTALLATION.md contains placeholder-like text matching <[^>\\n]+>"
+    "README.md contains placeholder-like text matching <[^>\\n]+>"
   ],
   "change_doc_count": 0,
   "trusted_floor_status": "HEAD_AHEAD_OR_TAG_UNKNOWN",
   "latest_tag": "v0.1.3-internal-rc5",
-  "head_commit": "76bd86fe9a494e80a326f3cf8ac8aede44630a7a"
+  "head_commit": "aaab11c3fdf160de04ff096dbc6fdcf99279c1f8"
 }
