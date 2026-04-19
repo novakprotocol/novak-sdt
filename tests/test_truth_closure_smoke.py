@@ -21,4 +21,4 @@ def test_install_truth_hooks_help() -> None:
         capture_output=True,
         check=True,
     )
-    assert 'INSTALLED_HOOKS' in result.stdout
+    assert 'INSTALLED_ADVISORY_HOOKS' in result.stdout
