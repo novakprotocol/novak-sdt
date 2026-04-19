@@ -244,3 +244,20 @@ Do not expose secrets, credentials, or unnecessary internal risk.
 
 If it matters, it should be documented clearly enough that work can continue without the original author.
 
+## Current SDT change and operator additions
+
+SDT now includes:
+
+- native `sdt change-bundle`
+- proof capture with `--apply-proof`
+- a change intent / alignment standard
+- a shell activation context via `tools/sdt_shell_activate.sh`
+
+Intent should stay lightweight:
+
+- what should change
+- what should not change
+- why
+- expected proof
+- whether the final diff stayed in intent
+
