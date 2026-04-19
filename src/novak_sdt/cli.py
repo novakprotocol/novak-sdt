@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import argparse
+from .change_bundle import run_change_bundle
 import subprocess
 import sys
 import time
@@ -450,6 +451,16 @@ def build_parser() -> argparse.ArgumentParser:
         description="Software Digital Thread repo bootstrap and baseline tool.",
     )
     sub = parser.add_subparsers(dest="command", required=True)
+
+    change_bundle = sub.add_parser(
+        "change-bundle",
+        help="Create an SDT change bundle scaffold",
+    )
+    change_bundle.add_argument("--repo", required=True, help="Target repository path")
+    change_bundle.add_argument("--title", required=True, help="Human-readable change title")
+    change_bundle.add_argument("--type", required=True, help="Change type, e.g. wording-change")
+    change_bundle.add_argument("--why", required=True, help="Why the change is being made")
+    change_bundle.set_defaults(func=run_change_bundle)
 
     common = argparse.ArgumentParser(add_help=False)
     common.add_argument("--path", required=True, help="Target repo path.")
