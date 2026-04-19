@@ -33,6 +33,15 @@ def run_change_bundle(args) -> int:
         args.why,
     ]
 
+    if getattr(args, "apply_proof", False):
+        argv.append("--apply-proof")
+
+    for command in getattr(args, "command", []) or []:
+        argv.extend(["--command", command])
+
+    for proof_ref in getattr(args, "proof_ref", []) or []:
+        argv.extend(["--proof-ref", proof_ref])
+
     old_argv = sys.argv[:]
     try:
         sys.argv = argv

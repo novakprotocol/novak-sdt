@@ -5,6 +5,7 @@ import argparse
 from datetime import UTC, datetime
 from pathlib import Path
 import re
+import subprocess
 
 
 def slugify(value: str) -> str:
@@ -20,16 +21,70 @@ def write_if_missing(path: Path, content: str) -> None:
         path.write_text(content, encoding="utf-8")
 
 
+def append_text(path: Path, content: str) -> None:
+    path.parent.mkdir(parents=True, exist_ok=True)
+    existing = path.read_text(encoding="utf-8") if path.exists() else ""
+    if existing and not existing.endswith("\n"):
+        existing += "\n"
+    path.write_text(existing + content, encoding="utf-8")
+
+
+def git_value(repo: Path, *args: str) -> str:
+    if not (repo / ".git").exists():
+        return "unknown"
+    try:
+        result = subprocess.run(
+            ["git", *args],
+            cwd=repo,
+            text=True,
+            capture_output=True,
+            check=True,
+        )
+        return result.stdout.strip() or "unknown"
+    except Exception:
+        return "unknown"
+
+
+def run_command(repo: Path, command: str) -> tuple[int, str, str]:
+    result = subprocess.run(
+        command,
+        cwd=repo,
+        text=True,
+        capture_output=True,
+        shell=True,
+        check=False,
+    )
+    return result.returncode, result.stdout, result.stderr
+
+
 def main() -> int:
     parser = argparse.ArgumentParser(description="Create an SDT change bundle scaffold")
     parser.add_argument("--repo", required=True, help="Target repository path")
     parser.add_argument("--title", required=True, help="Human-readable change title")
     parser.add_argument("--type", required=True, help="Change type, e.g. wording-change")
     parser.add_argument("--why", required=True, help="Why the change is being made")
+    parser.add_argument(
+        "--apply-proof",
+        action="store_true",
+        help="Append proof capture into the poststate and change record",
+    )
+    parser.add_argument(
+        "--command",
+        action="append",
+        default=[],
+        help="Command to run in the target repo and capture into the proof bundle; may be repeated",
+    )
+    parser.add_argument(
+        "--proof-ref",
+        action="append",
+        default=[],
+        help="Proof reference or artifact path to append; may be repeated",
+    )
     args = parser.parse_args()
 
     repo = Path(args.repo).resolve()
     stamp = datetime.now(UTC).strftime("%Y-%m-%d")
+    stamp_full = datetime.now(UTC).strftime("%Y-%m-%d %H:%M:%S UTC")
     slug = slugify(args.title)
 
     changes_dir = repo / "docs/changes"
@@ -80,7 +135,7 @@ def main() -> int:
                 f"# {args.title} pre-state",
                 "",
                 "## Stamp",
-                datetime.now(UTC).strftime("%Y-%m-%d %H:%M:%S UTC"),
+                stamp_full,
                 "",
                 "## Branch",
                 "- fill in current branch",
@@ -102,7 +157,7 @@ def main() -> int:
                 f"# {args.title} post-state",
                 "",
                 "## Stamp",
-                datetime.now(UTC).strftime("%Y-%m-%d %H:%M:%S UTC"),
+                stamp_full,
                 "",
                 "## Branch",
                 "- fill in current branch",
@@ -116,6 +171,77 @@ def main() -> int:
             ]
         ),
     )
+
+    if args.apply_proof:
+        branch = git_value(repo, "branch", "--show-current")
+        commit = git_value(repo, "rev-parse", "HEAD")
+
+        append_text(
+            poststate_path,
+            "\n".join(
+                [
+                    "",
+                    "## Applied proof",
+                    f"- stamp: {stamp_full}",
+                    f"- branch: {branch}",
+                    f"- commit: {commit}",
+                    "",
+                ]
+            ),
+        )
+
+        if args.command:
+            append_text(poststate_path, "## Commands\n\n")
+            append_text(change_path, "\n## Verification performed\n- applied_proof: yes\n")
+            for command in args.command:
+                rc, stdout, stderr = run_command(repo, command)
+                append_text(
+                    poststate_path,
+                    "\n".join(
+                        [
+                            f"### `{command}`",
+                            f"- returncode: {rc}",
+                            "",
+                            "#### stdout",
+                            "```text",
+                            stdout.rstrip(),
+                            "```",
+                            "",
+                            "#### stderr",
+                            "```text",
+                            stderr.rstrip(),
+                            "```",
+                            "",
+                        ]
+                    ),
+                )
+                append_text(change_path, f"- command: `{command}`\n- returncode: `{rc}`\n")
+        else:
+            append_text(change_path, "\n## Verification performed\n- applied_proof: yes\n- no commands supplied\n")
+
+        if args.proof_ref:
+            append_text(
+                poststate_path,
+                "\n".join(
+                    [
+                        "",
+                        "## Proof references",
+                        *[f"- {item}" for item in args.proof_ref],
+                        "",
+                    ]
+                ),
+            )
+            append_text(
+                change_path,
+                "\n".join(
+                    [
+                        "",
+                        "## Proof references",
+                        *[f"- {item}" for item in args.proof_ref],
+                        "",
+                    ]
+                ),
+            )
 
     print(f"CHANGE_INDEX={index_path}")
     print(f"CHANGE_RECORD={change_path}")
