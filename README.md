@@ -261,3 +261,23 @@ Intent should stay lightweight:
 - expected proof
 - whether the final diff stayed in intent
 
+## Operator shell entry
+
+Best practice:
+
+- `sdt` stays the SDT CLI
+- `novak` enters the NOVΛK™ - SDT shell context
+- `nsdt` is a short alias for `novak`
+
+Install local shell shortcuts with:
+
+- `bash ./tools/install_novak_shell_shortcuts.sh`
+
+Immediate activation in the current shell:
+
+- `source ~/.novak_sdt_shell_shortcuts.sh`
+
+Manual fallback inside any SDT repo:
+
+- `source ./tools/sdt_shell_activate.sh`
+
