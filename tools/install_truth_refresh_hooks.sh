@@ -2,37 +2,23 @@
 set -Eeuo pipefail
 set +H
 
-REPO_DIR="${1:-$(pwd)}"
-HOOK_DIR="${REPO_DIR}/.git/hooks"
+REPO_ROOT="${1:-$(git rev-parse --show-toplevel 2>/dev/null || pwd)}"
+HOOK_DIR="${REPO_ROOT}/.git/hooks"
 
 mkdir -p "${HOOK_DIR}"
 
-cat > "${HOOK_DIR}/post-commit" <<'HOOK'
+for hook in post-commit post-merge; do
+  if [[ -f "${HOOK_DIR}/${hook}" && ! -f "${HOOK_DIR}/${hook}.bak.sdt" ]]; then
+    mv "${HOOK_DIR}/${hook}" "${HOOK_DIR}/${hook}.bak.sdt"
+  fi
+
+  cat > "${HOOK_DIR}/${hook}" <<HOOK
 #!/usr/bin/env bash
 set -Eeuo pipefail
 set +H
-
-repo_root="$(git rev-parse --show-toplevel)"
-cd "${repo_root}"
-
-if [[ -x tools/run_truth_refresh_and_stage.sh ]]; then
-  tools/run_truth_refresh_and_stage.sh "${repo_root}" >/tmp/sdt-post-commit-truth.log 2>&1 || true
-fi
+bash "${REPO_ROOT}/tools/truth_refresh_advisory.sh" "${REPO_ROOT}" || true
 HOOK
-chmod +x "${HOOK_DIR}/post-commit"
+  chmod +x "${HOOK_DIR}/${hook}"
+done
 
-cat > "${HOOK_DIR}/post-merge" <<'HOOK'
-#!/usr/bin/env bash
-set -Eeuo pipefail
-set +H
-
-repo_root="$(git rev-parse --show-toplevel)"
-cd "${repo_root}"
-
-if [[ -x tools/run_truth_refresh_and_stage.sh ]]; then
-  tools/run_truth_refresh_and_stage.sh "${repo_root}" >/tmp/sdt-post-merge-truth.log 2>&1 || true
-fi
-HOOK
-chmod +x "${HOOK_DIR}/post-merge"
-
-echo "INSTALLED_HOOKS repo=${REPO_DIR}"
+echo "INSTALLED_ADVISORY_HOOKS repo=${REPO_ROOT}"
