@@ -3,6 +3,23 @@ from __future__ import annotations
 from dataclasses import dataclass, asdict
 from datetime import UTC, datetime
 from pathlib import Path
+
+
+APPLICATION_CODE_HINTS = (
+    "app",
+    "src",
+    "tests",
+)
+
+IGNORED_WEIGHT_DIRS = {
+    ".venv",
+    "node_modules",
+    "site",
+    "build",
+    "dist",
+    "__pycache__",
+}
+
 import json
 import os
 import re
@@ -765,3 +782,13 @@ def write_outputs(repo: Path, apply_docs: bool = True) -> dict[str, Any]:
         "drift_findings": drift_findings,
         "status_dir": str(status_dir),
     }
+
+
+def _sdt_truth_closure_weight_path(path_text: str, default_weight: int) -> int:
+    normalized = path_text.replace('\\', '/').lower()
+    if any(part in normalized.split('/') for part in IGNORED_WEIGHT_DIRS):
+        return 0
+    if any(f'/{hint}/' in f'/{normalized}/' for hint in APPLICATION_CODE_HINTS):
+        return default_weight * 5
+    return default_weight
+
