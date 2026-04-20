@@ -3,6 +3,7 @@ set -Eeuo pipefail
 set +H
 
 REPO_DIR="${1:-$(pwd)}"
+SOURCE_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 
 cd "${REPO_DIR}"
 
