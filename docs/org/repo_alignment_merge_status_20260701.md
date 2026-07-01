@@ -6,6 +6,11 @@ Safe documentation-only alignment PRs were reviewed by changed-file list, marked
 
 For two connector-stuck draft PRs, equivalent docs-only changes were applied directly to the default branch and the stuck draft PRs were closed.
 
+Two originally connector-blocked repos were later completed from a local checkout after local verification:
+
+- `N-TRFACE` PR #5 was squash-merged after local RepoOps and product checks passed.
+- `va-location-reference-catalog` PR #16 was squash-merged after local validation and hosted GitHub validation passed.
+
 No product behavior changes were made.
 
 ## Merged PRs
@@ -23,6 +28,8 @@ No product behavior changes were made.
 - TouchDeck #266
 - B.I.N.A.T.E.-DAY #2
 - B.I.N.A.T.E.-RDY #2
+- N-TRFACE #5
+- va-location-reference-catalog #16
 
 ## Direct default-branch alignment commits
 
@@ -31,9 +38,7 @@ No product behavior changes were made.
 
 ## Still blocked after all connector attempts
 
-- N-TRFACE: branch `repoops-alignment-20260701` contains a docs alignment file, but connector blocked PR creation and blocked direct file creation on `main`. `.repo-standard.yml` still needs source cleanup from the older standards reference after local review.
-- va-location-reference-catalog: branch `repoops-alignment-20260701` exists, but connector blocked even a minimal docs note. Continue locally with public-data boundaries.
-- SSHIT / ProofPlane Access: connector operations remain filtered; handle separately, including product-facing name review.
+- SSHIT / ProofPlane Access: connector operations were filtered, and local pytest failed after dependencies were installed. Treat `ProofPlane Access` as the product-facing name, keep the repo slug unchanged until owner review, and do not merge alignment docs until the product-test blocker is fixed or explicitly accepted in a separate lane.
 
 ## Meaning
 
