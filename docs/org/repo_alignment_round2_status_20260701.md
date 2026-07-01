@@ -14,9 +14,12 @@ Round 2 retried the repos that were blocked during the first pass.
 
 ## Still blocked after retry
 
-- N-TRFACE: branch and file exist, but PR creation was blocked by connector filtering.
-- va-location-reference-catalog: branch exists, but file creation was blocked by connector filtering.
-- SSHIT / ProofPlane Access: connector operations remain filtered; handle separately.
+- SSHIT / ProofPlane Access: connector operations remain filtered; local pytest also fails after installing dependencies, so do not merge alignment docs until the product-test blocker is fixed or explicitly accepted in a separate lane.
+
+## Resolved after local checkout
+
+- N-TRFACE: https://github.com/novakprotocol/N-TRFACE/pull/5 merged after local checks passed.
+- va-location-reference-catalog: https://github.com/novakprotocol/va-location-reference-catalog/pull/16 merged after local validation and hosted validation passed.
 
 ## Draft PRs from round 1 still open
 
