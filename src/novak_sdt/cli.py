@@ -318,6 +318,19 @@ def build_gap_report(root: Path, product_name: str) -> str:
     )
 
 
+def print_repoops_followup(*, report_only: bool = False) -> None:
+    print()
+    print("RepoOps next step:")
+    if report_only:
+        print("- review the missing N-SDT truth and continuity files")
+        print("- if approved, run `sdt baseline` before RepoOps dry-run")
+        return
+
+    print("- run RepoOps dry-run or report mode")
+    print("- choose the smallest RepoOps profile that fits")
+    print("- review suggested merges and record exceptions")
+
+
 def apply_floor(root: Path, context: dict[str, str], overwrite: bool, include_report: bool) -> None:
     templates: dict[str, str] = {}
     templates.update(core_templates())
@@ -425,6 +438,7 @@ def cmd_baseline(args: argparse.Namespace) -> int:
     if args.report_only:
         step(f"Generating report-only baseline view for {root}")
         print(build_gap_report(root, context["PRODUCT_NAME"]))
+        print_repoops_followup(report_only=True)
         timer()
         return 0
 
@@ -439,6 +453,7 @@ def cmd_baseline(args: argparse.Namespace) -> int:
     print(f"repo_path={root}")
     timer()
     run_truth_refresh(root)
+    print_repoops_followup()
 
     return 0
 
