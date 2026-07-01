@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import subprocess
+import sys
 from pathlib import Path
 
 
@@ -10,7 +11,7 @@ def test_change_bundle_scaffold(tmp_path: Path) -> None:
 
     result = subprocess.run(
         [
-            "python3",
+            sys.executable,
             "tools/sdt_change_bundle.py",
             "--repo",
             str(repo),

@@ -3,9 +3,23 @@ import os
 import subprocess
 from pathlib import Path
 
+import pytest
+
+
+pytestmark = pytest.mark.skipif(os.name == "nt", reason="runner wrapper shell smoke requires a POSIX shell")
+
+
+TEST_GIT_ENV = {
+    "GIT_AUTHOR_NAME": "SDT Test",
+    "GIT_AUTHOR_EMAIL": "sdt-test@example.invalid",
+    "GIT_COMMITTER_NAME": "SDT Test",
+    "GIT_COMMITTER_EMAIL": "sdt-test@example.invalid",
+}
+
 
 def run(cmd: list[str], *, check: bool = True, env: dict[str, str] | None = None) -> subprocess.CompletedProcess[str]:
     merged_env = os.environ.copy()
+    merged_env.update(TEST_GIT_ENV)
     if env:
         merged_env.update(env)
     return subprocess.run(

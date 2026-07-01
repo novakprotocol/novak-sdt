@@ -15,7 +15,7 @@ def test_list_files_ignores_noise(tmp_path: Path) -> None:
     (repo / "app").mkdir(parents=True)
     (repo / "app" / "main.py").write_text("print('ok')\n", encoding="utf-8")
     files = list_files(repo)
-    paths = {str(p.relative_to(repo)) for p in files}
+    paths = {p.relative_to(repo).as_posix() for p in files}
     assert "app/main.py" in paths
     assert ".venv/x.py" not in paths
 
