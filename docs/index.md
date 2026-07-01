@@ -20,6 +20,9 @@ S.D.T. is a repo birth and repo baseline system for making serious repos easier 
 ## Start here
 
 - read `SDT_101.md`
+- read `architecture/N_SDT_ADJACENT_SYSTEMS.md`
+- read `architecture/LEGACY_SDT_REPO_CONSOLIDATION_20260701.md`
+- read `architecture/SDT_BIRTH_TEMPLATE_PARITY.md`
 - read `PROOFS.md`
 - read `REPORTS.md`
 - read `SDT_CREATED_DOCS_INDEX.md`

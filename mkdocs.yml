@@ -23,6 +23,9 @@ nav:
   - Proofs: PROOFS.md
   - Reports: REPORTS.md
   - Serious Mode: SDT_SERIOUS_MODE.md
+  - Adjacent Systems: architecture/N_SDT_ADJACENT_SYSTEMS.md
+  - Legacy Repo Consolidation: architecture/LEGACY_SDT_REPO_CONSOLIDATION_20260701.md
+  - Birth Template Parity: architecture/SDT_BIRTH_TEMPLATE_PARITY.md
   - Current Repo Report (Markdown): status/SDT_REPO_REPORT.md
   - GitHub Pages: GITHUB_PAGES.md
   - Case Study: CASE_STUDY.md
