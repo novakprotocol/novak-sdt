@@ -21,7 +21,9 @@ Master issue:
 
 - https://github.com/novakprotocol/novak-sdt/issues/52
 
-## Empty repo deletion status
+## Deleted repo status
+
+### Empty repo deletion batch
 
 Status: **completed by owner from PowerShell on 2026-07-01**.
 
@@ -40,7 +42,15 @@ The following repos were first verified through GitHub repository metadata as `s
 | `T.R.A.C.E.` | 0 | Deleted | Empty placeholder; ProofPlane Access appears to carry actual access/evidence implementation. |
 | `V.O.I.D.` | 0 | Deleted | Empty reserved placeholder; no repo content. |
 
-### Why they probably existed
+### Additional intentional deletion
+
+Status: **completed by owner from PowerShell on 2026-07-01**.
+
+| Repository | Previous GitHub size | Previous visibility | Final status | Reason |
+|---|---:|---|---|---|
+| `novak-wrapit-public-hello-world` | 4 | public | Deleted | Owner-requested cleanup of disposable WRAPIT public hello-world/demo repo. |
+
+### Why the empty repos probably existed
 
 The pattern suggests these were created as acronym placeholders for future NOVAK control-plane lanes or old naming experiments. Empty placeholder repos were not useful long-term because they created false inventory, confused scans, and made it harder to tell what was real.
 
@@ -61,7 +71,8 @@ $repos = @(
   "novakprotocol/S.E.A.L.",
   "novakprotocol/S.E.C.S.N.E.T.",
   "novakprotocol/T.R.A.C.E.",
-  "novakprotocol/V.O.I.D."
+  "novakprotocol/V.O.I.D.",
+  "novakprotocol/novak-wrapit-public-hello-world"
 )
 
 foreach ($repo in $repos) {
@@ -91,7 +102,7 @@ These repos have enough documented purpose to receive classification-first N-SDT
 | `TouchDeck` | Historical/source-accounting and migration reference | Predecessor truth and migration residue | Historical/source-accounting profile | Valuable source-accounting repo for N-CTRL; do not port wholesale. | https://github.com/novakprotocol/TouchDeck/issues/265 |
 | `V.I.S.O.R.` | Active visibility/glass product | Visibility layer truth | Active product profile | Strong rule: displays upstream truth, is not truth source. | https://github.com/novakprotocol/V.I.S.O.R./issues/1 |
 | `va-location-reference-catalog` | Data/reference repo | Public-data truth boundary | Data/reference profile | Correctly separate from N-X; public-source only. | https://github.com/novakprotocol/va-location-reference-catalog/issues/15 |
-| `W.R.A.P.I.T.` | Active CLI/evidence tool | Thin wrapper truth | CLI/tool profile | Strong focused lane; do not inflate into policy engine/orchestrator. | https://github.com/novakprotocol/W.R.A.P.I.T./issues/2 |
+| `W.R.A.P.I.T.` | Active CLI/evidence tool | Thin wrapper truth | CLI/tool profile | Strong focused lane; do not inflate into policy engine/orchestrator. Deleted public hello-world/demo repo should not be treated as the canonical WRAPIT proof source. | https://github.com/novakprotocol/W.R.A.P.I.T./issues/2 |
 | `N-TRFACE` | Active command-interface backend | Command backend truth + N-App bridge status | Python/product profile | Should use `speech-protocol-lab` only as selective research input, not migration source. | https://github.com/novakprotocol/N-TRFACE/issues/4 |
 
 ## Alignment implementation sequence
@@ -126,12 +137,13 @@ For each active/documented repo:
 ### Immediate next actions
 
 1. Keep the deleted empty repos deleted; do not recreate placeholders without a concrete implementation plan.
-2. Start active alignment with `novare`, `nsip`, `W.R.A.P.I.T.`, `niat`, and `N-TRFACE` because they have the clearest active implementation signal.
-3. For each, run N-SDT report-only and RepoOps dry-run.
-4. Create PRs only for real gaps.
-5. Do not modify `TouchDeck` beyond source-accounting and migration-residue documentation.
-6. Review `SSHIT` naming/description separately; product appears to be ProofPlane Access.
-7. Treat the deleted `P.R.O.V.E.` and `T.R.A.C.E.` placeholders as removed from active inventory unless a future deliberate repo is created with real content.
+2. Keep `novak-wrapit-public-hello-world` deleted unless a future public WRAPIT sample repo is created intentionally with clear README, license/rights, and public-safe proof boundary.
+3. Start active alignment with `novare`, `nsip`, `W.R.A.P.I.T.`, `niat`, and `N-TRFACE` because they have the clearest active implementation signal.
+4. For each, run N-SDT report-only and RepoOps dry-run.
+5. Create PRs only for real gaps.
+6. Do not modify `TouchDeck` beyond source-accounting and migration-residue documentation.
+7. Review `SSHIT` naming/description separately; product appears to be ProofPlane Access.
+8. Treat the deleted `P.R.O.V.E.` and `T.R.A.C.E.` placeholders as removed from active inventory unless a future deliberate repo is created with real content.
 
 ### Stronger ideas found while reading
 
@@ -142,10 +154,12 @@ For each active/documented repo:
 - `speech-protocol-lab` should remain a small lab, not a migration source for N-TRFACE.
 - `TouchDeck` remains useful as predecessor/source-accounting for N-CTRL, but should not be treated as the current product.
 - The DAY repos are not random junk; they look like workflow planes: baseline, build, change, and B2 transition lanes.
+- The deleted WRAPIT public hello-world repo was not canonical WRAPIT. Canonical WRAPIT remains `W.R.A.P.I.T.`.
 
 ## Hard no-go items
 
 - Do not recreate empty placeholder repos without a real implementation plan.
+- Do not recreate public demo/sample repos without clear public-safe boundaries.
 - Do not rename repos during this pass.
 - Do not claim release readiness.
 - Do not claim hosted CI passed without evidence.
