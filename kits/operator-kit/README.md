@@ -37,6 +37,8 @@ RepoOps:
 - AI-agent governance
 - checks and profile alignment
 
+This kit is not RepoOps.
+
 Use N-SDT first to establish truth and continuity. Use RepoOps second to apply repo-operating discipline.
 
 ## Files
