@@ -114,14 +114,20 @@ Done means:
 - Do not treat N-SDT as the source of repo policy.
 - Do not introduce a new acronym or repository to solve this boundary.
 
-## Future Small Adapters
+## Current Small Adapters
 
-The next implementation work should stay small:
+The first implementation work stays small:
 
 - N-SDT can print a final recommendation after baseline:
 
   ```text
   Next: run RepoOps dry-run, choose a profile, and review suggested merges.
+  ```
+
+- N-SDT can print a report-only follow-up before files are written:
+
+  ```text
+  Next: review missing truth and continuity files, then run baseline if approved.
   ```
 
 - RepoOps can detect N-SDT context files:
