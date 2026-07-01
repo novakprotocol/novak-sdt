@@ -188,6 +188,7 @@ Use inventory mode for before / after server truth.
 
 ## Learn fast
 
+- `AGENTS.md`
 - `docs/SDT_101.md`
 - `docs/architecture/N_SDT_REPOOPS_ADOPTION_GUIDE.md`
 - `docs/architecture/N_SDT_ADJACENT_SYSTEMS.md`
