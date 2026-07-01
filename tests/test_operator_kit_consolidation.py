@@ -11,6 +11,7 @@ def test_operator_kit_files_exist():
         "kits/operator-kit/docs/operator/COLD_START_RECOVERY.md",
         "kits/operator-kit/docs/templates/NEXT_OPERATOR_PACKET_TEMPLATE.md",
         "kits/operator-kit/docs/templates/WHAT_IS_REAL_NOW_TEMPLATE.md",
+        "kits/operator-kit/docs/templates/PROJECT_STATE_TEMPLATE.md",
         "kits/operator-kit/docs/templates/OPERATOR_HANDOFF_TEMPLATE.md",
         "kits/operator-kit/examples/minimal-repo-floor/README.md",
         "kits/operator-kit/examples/minimal-repo-floor/WHAT_IS_REAL_NOW.md",
