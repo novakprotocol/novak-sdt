@@ -31,7 +31,8 @@ def test_operator_kit_boundary_is_clear():
     assert "N-SDT operator kit" in text
     assert "RepoOps" in text
     assert "not RepoOps" in text
-    assert "RepoOps comes after" in text
+    assert "Use N-SDT first" in text
+    assert "Use RepoOps second" in text
 
 
 def test_old_repo_not_claimed_removed():
