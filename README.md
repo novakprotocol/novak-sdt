@@ -189,6 +189,7 @@ Use inventory mode for before / after server truth.
 ## Learn fast
 
 - `docs/SDT_101.md`
+- `docs/architecture/N_SDT_REPOOPS_ADOPTION_GUIDE.md`
 - `docs/architecture/N_SDT_ADJACENT_SYSTEMS.md`
 - `docs/architecture/LEGACY_SDT_REPO_CONSOLIDATION_20260701.md`
 - `docs/architecture/SDT_BIRTH_TEMPLATE_PARITY.md`
@@ -204,6 +205,10 @@ Use inventory mode for before / after server truth.
 - RepoOps: repo operating discipline and quality gates.
 - W.R.A.P.I.T.: command receipts and execution evidence. It keeps its name.
 - S.I.G.I.L.: product repo under SDT, not SDT itself.
+
+For the current N-SDT + RepoOps adoption path, use
+`docs/architecture/N_SDT_REPOOPS_ADOPTION_GUIDE.md`. That guide intentionally
+keeps the path narrowed to N-SDT and RepoOps.
 
 Legacy SDT support repos have been consolidated into the current N-SDT docs
 before archival.
