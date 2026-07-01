@@ -1,10 +1,26 @@
 import json
+import os
 import subprocess
 from pathlib import Path
 
+import pytest
+
+
+pytestmark = pytest.mark.skipif(os.name == "nt", reason="notify shell smoke requires a POSIX shell")
+
+
+TEST_GIT_ENV = {
+    "GIT_AUTHOR_NAME": "SDT Test",
+    "GIT_AUTHOR_EMAIL": "sdt-test@example.invalid",
+    "GIT_COMMITTER_NAME": "SDT Test",
+    "GIT_COMMITTER_EMAIL": "sdt-test@example.invalid",
+}
+
 
 def run(cmd: list[str], check: bool = True) -> subprocess.CompletedProcess[str]:
-    return subprocess.run(cmd, text=True, capture_output=True, check=check)
+    env = os.environ.copy()
+    env.update(TEST_GIT_ENV)
+    return subprocess.run(cmd, text=True, capture_output=True, check=check, env=env)
 
 
 def test_notify_n1_born_floor_and_return_codes(tmp_path: Path) -> None:

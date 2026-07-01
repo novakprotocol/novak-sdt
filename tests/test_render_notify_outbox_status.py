@@ -1,5 +1,6 @@
 import json
 import subprocess
+import sys
 from pathlib import Path
 
 
@@ -17,7 +18,7 @@ def test_render_notify_outbox_status(tmp_path: Path) -> None:
     output = tmp_path / "status.md"
 
     subprocess.run(
-        ["python3", "tools/render_notify_outbox_status.py", str(outbox), str(output)],
+        [sys.executable, "tools/render_notify_outbox_status.py", str(outbox), str(output)],
         check=True,
         text=True,
         capture_output=True,

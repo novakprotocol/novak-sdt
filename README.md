@@ -189,11 +189,24 @@ Use inventory mode for before / after server truth.
 ## Learn fast
 
 - `docs/SDT_101.md`
+- `docs/architecture/N_SDT_ADJACENT_SYSTEMS.md`
+- `docs/architecture/LEGACY_SDT_REPO_CONSOLIDATION_20260701.md`
+- `docs/architecture/SDT_BIRTH_TEMPLATE_PARITY.md`
 - `docs/EXAMPLE_BASELINE_BEFORE_AFTER.md`
 - `docs/DIAGRAM_01_OPERATIONAL_FLOW.md`
 - `docs/DIAGRAM_02_FILES_ADDED.md`
 - `docs/DIAGRAM_03_FRESHMAN_EXPLANATION.md`
 - `docs/PUBLIC_VS_PRIVATE.md`
+
+## Adjacent systems
+
+- N-SDT / `novak-sdt`: current SDT implementation and `sdt` CLI.
+- RepoOps: repo operating discipline and quality gates.
+- W.R.A.P.I.T.: command receipts and execution evidence. It keeps its name.
+- S.I.G.I.L.: product repo under SDT, not SDT itself.
+
+Legacy SDT support repos have been consolidated into the current N-SDT docs
+before archival.
 
 ## Rights
 
