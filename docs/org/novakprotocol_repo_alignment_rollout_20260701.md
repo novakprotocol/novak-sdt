@@ -21,57 +21,53 @@ Master issue:
 
 - https://github.com/novakprotocol/novak-sdt/issues/52
 
-## Deletion candidates
+## Empty repo deletion status
 
-The following repos were verified through GitHub repository metadata as `size: 0`. They appear empty and should be treated as delete candidates unless there is a reason outside the repo to preserve the name.
+Status: **completed by owner from PowerShell on 2026-07-01**.
 
-| Repository | GitHub size | Current recommendation | Reason |
+The following repos were first verified through GitHub repository metadata as `size: 0`, then deleted by the owner using authenticated GitHub CLI. Verification after deletion returned deleted/not found for each repo.
+
+| Repository | Previous GitHub size | Final status | Reason |
 |---|---:|---|---|
-| `C.O.R.E.---OLD` | 0 | Delete candidate | Empty legacy/old repo; active `C.O.R.E.` exists. |
-| `H.A.L.T.` | 0 | Delete candidate | Empty reserved placeholder; no repo content. |
-| `M.E.S.H.` | 0 | Delete candidate | Empty reserved placeholder; no repo content. |
-| `N.E.X.S.` | 0 | Delete candidate | Empty reserved placeholder; no repo content. |
-| `P.A.S.S.` | 0 | Delete candidate | Empty reserved placeholder; no repo content. |
-| `P.R.O.V.E.` | 0 | Delete candidate unless intentionally reserved | Empty placeholder; `novare` appears to carry actual recovery/proof implementation. |
-| `S.E.A.L.` | 0 | Delete candidate | Empty reserved placeholder; no repo content. |
-| `S.E.C.S.N.E.T.` | 0 | Delete candidate | Empty reserved placeholder; no repo content. |
-| `T.R.A.C.E.` | 0 | Delete candidate unless intentionally reserved | Empty placeholder; ProofPlane Access appears to carry actual access/evidence implementation. |
-| `V.O.I.D.` | 0 | Delete candidate | Empty reserved placeholder; no repo content. |
+| `C.O.R.E.---OLD` | 0 | Deleted | Empty legacy/old repo; active `C.O.R.E.` exists. |
+| `H.A.L.T.` | 0 | Deleted | Empty reserved placeholder; no repo content. |
+| `M.E.S.H.` | 0 | Deleted | Empty reserved placeholder; no repo content. |
+| `N.E.X.S.` | 0 | Deleted | Empty reserved placeholder; no repo content. |
+| `P.A.S.S.` | 0 | Deleted | Empty reserved placeholder; no repo content. |
+| `P.R.O.V.E.` | 0 | Deleted | Empty placeholder; `novare` appears to carry actual recovery/proof implementation. |
+| `S.E.A.L.` | 0 | Deleted | Empty reserved placeholder; no repo content. |
+| `S.E.C.S.N.E.T.` | 0 | Deleted | Empty reserved placeholder; no repo content. |
+| `T.R.A.C.E.` | 0 | Deleted | Empty placeholder; ProofPlane Access appears to carry actual access/evidence implementation. |
+| `V.O.I.D.` | 0 | Deleted | Empty reserved placeholder; no repo content. |
 
-### Why they probably exist
+### Why they probably existed
 
-The pattern suggests these were created as acronym placeholders for future NOVAK control-plane lanes or old naming experiments. Empty placeholder repos are not useful long-term because they create false inventory, confuse scans, and make it harder to tell what is real.
+The pattern suggests these were created as acronym placeholders for future NOVAK control-plane lanes or old naming experiments. Empty placeholder repos were not useful long-term because they created false inventory, confused scans, and made it harder to tell what was real.
 
-### Delete limitation
+### Delete command used
 
-The GitHub connector exposed in this chat does not provide a repository-delete action. It only exposes file deletion, issue creation, comments, and related repository operations. Therefore repository deletion must be done manually through GitHub UI or a local authenticated GitHub CLI.
+Owner deletion was performed with GitHub CLI after refreshing the `delete_repo` scope.
 
-Manual deletion commands if confirmed locally:
+```powershell
+gh auth refresh -h github.com -s delete_repo
 
-```bash
-gh repo delete novakprotocol/C.O.R.E.---OLD --yes
-gh repo delete novakprotocol/H.A.L.T. --yes
-gh repo delete novakprotocol/M.E.S.H. --yes
-gh repo delete novakprotocol/N.E.X.S. --yes
-gh repo delete novakprotocol/P.A.S.S. --yes
-gh repo delete novakprotocol/P.R.O.V.E. --yes
-gh repo delete novakprotocol/S.E.A.L. --yes
-gh repo delete novakprotocol/S.E.C.S.N.E.T. --yes
-gh repo delete novakprotocol/T.R.A.C.E. --yes
-gh repo delete novakprotocol/V.O.I.D. --yes
+$repos = @(
+  "novakprotocol/C.O.R.E.---OLD",
+  "novakprotocol/H.A.L.T.",
+  "novakprotocol/M.E.S.H.",
+  "novakprotocol/N.E.X.S.",
+  "novakprotocol/P.A.S.S.",
+  "novakprotocol/P.R.O.V.E.",
+  "novakprotocol/S.E.A.L.",
+  "novakprotocol/S.E.C.S.N.E.T.",
+  "novakprotocol/T.R.A.C.E.",
+  "novakprotocol/V.O.I.D."
+)
+
+foreach ($repo in $repos) {
+  gh repo delete $repo --yes
+}
 ```
-
-Recommended safety check before deletion:
-
-```bash
-for repo in \
-  C.O.R.E.---OLD H.A.L.T. M.E.S.H. N.E.X.S. P.A.S.S. \
-  P.R.O.V.E. S.E.A.L. S.E.C.S.N.E.T. T.R.A.C.E. V.O.I.D.; do
-  gh repo view "novakprotocol/$repo" --json name,isEmpty,visibility,updatedAt,pushedAt
-done
-```
-
-If any repo shows non-empty content, stop and inspect before deletion.
 
 ## Active/documented repos queued for alignment
 
@@ -87,11 +83,11 @@ These repos have enough documented purpose to receive classification-first N-SDT
 | `C.H.A.N.G.E.-DAY` | Support/governance workflow lane | Change/governed mutation truth | Support/governance profile | Clear request/review/closeout/rollback lane. | https://github.com/novakprotocol/C.H.A.N.G.E.-DAY/issues/1 |
 | `C.O.R.E.` | Active product/tool or overlap candidate | NIA Foundry truth plus acronym-overlap exception | Active product or overlap profile | README is strong: governed AI-assisted engineering control room. | https://github.com/novakprotocol/C.O.R.E./issues/12 |
 | `niat` | Active infrastructure truth/data product | Infrastructure-as-truth boundary | Data-spine or active product profile | Strong separation of reviewed truth from live discovery. | https://github.com/novakprotocol/niat/issues/1 |
-| `novare` | Active recovery/proof product | Recovery-proof truth | Active product profile | Appears to be real implementation for recovery/proof lane; may supersede empty `P.R.O.V.E.`. | https://github.com/novakprotocol/novare/issues/1 |
+| `novare` | Active recovery/proof product | Recovery-proof truth | Active product profile | Appears to be real implementation for recovery/proof lane; now explicitly supersedes the deleted empty `P.R.O.V.E.` placeholder unless a future repo is intentionally created. | https://github.com/novakprotocol/novare/issues/1 |
 | `nsip` | Active execution-evidence product | Proof-before-action truth | Active product/evidence profile | Strong receipt, replay, proof-guard, bundle evidence lane. | https://github.com/novakprotocol/nsip/issues/1 |
 | `S.I.G.I.L.` | Active governed-instruction product | Script/instruction governance truth | Active product profile | Clear script/instruction approval control-plane direction. | https://github.com/novakprotocol/S.I.G.I.L./issues/1 |
 | `speech-protocol-lab` | Research/lab side repo | Lab truth only | Lightweight lab profile | Should not be merged wholesale into N-TRFACE; useful as reference only. | https://github.com/novakprotocol/speech-protocol-lab/issues/1 |
-| `SSHIT` | Active access/evidence product | Access broker truth | Active product profile | README indicates product-facing name should be ProofPlane Access; issue creation blocked by connector. | Covered by master issue |
+| `SSHIT` | Active access/evidence product | Access broker truth | Active product profile | README indicates product-facing name should be ProofPlane Access; issue creation blocked by connector. Deleted empty `T.R.A.C.E.` no longer competes as a placeholder. | Covered by master issue |
 | `TouchDeck` | Historical/source-accounting and migration reference | Predecessor truth and migration residue | Historical/source-accounting profile | Valuable source-accounting repo for N-CTRL; do not port wholesale. | https://github.com/novakprotocol/TouchDeck/issues/265 |
 | `V.I.S.O.R.` | Active visibility/glass product | Visibility layer truth | Active product profile | Strong rule: displays upstream truth, is not truth source. | https://github.com/novakprotocol/V.I.S.O.R./issues/1 |
 | `va-location-reference-catalog` | Data/reference repo | Public-data truth boundary | Data/reference profile | Correctly separate from N-X; public-source only. | https://github.com/novakprotocol/va-location-reference-catalog/issues/15 |
@@ -123,23 +119,23 @@ For each active/documented repo:
 | Course/training repo | `course-repo` |
 | Historical/source-accounting repo | lightweight historical/reference profile |
 | Research/lab repo | `experimental-private` or lab profile |
-| Empty placeholder | delete; do not align |
+| Empty placeholder | already deleted; do not recreate without a clear purpose |
 
 ## What should happen next
 
 ### Immediate next actions
 
-1. Delete the ten empty repositories manually if no external reason exists to preserve the slugs.
-2. Start with `novare`, `nsip`, `W.R.A.P.I.T.`, `niat`, and `N-TRFACE` because they have the clearest active implementation signal.
+1. Keep the deleted empty repos deleted; do not recreate placeholders without a concrete implementation plan.
+2. Start active alignment with `novare`, `nsip`, `W.R.A.P.I.T.`, `niat`, and `N-TRFACE` because they have the clearest active implementation signal.
 3. For each, run N-SDT report-only and RepoOps dry-run.
 4. Create PRs only for real gaps.
 5. Do not modify `TouchDeck` beyond source-accounting and migration-residue documentation.
 6. Review `SSHIT` naming/description separately; product appears to be ProofPlane Access.
-7. Decide whether `P.R.O.V.E.` and `T.R.A.C.E.` should remain names at all after comparing with `novare` and ProofPlane Access.
+7. Treat the deleted `P.R.O.V.E.` and `T.R.A.C.E.` placeholders as removed from active inventory unless a future deliberate repo is created with real content.
 
 ### Stronger ideas found while reading
 
-- `novare` appears to be the real recovery/proof implementation. Empty `P.R.O.V.E.` may be redundant.
+- `novare` appears to be the real recovery/proof implementation. Deleted empty `P.R.O.V.E.` was likely redundant.
 - `SSHIT` appears to have a stronger product name already in README: ProofPlane Access. The slug should be reviewed later.
 - `S.I.G.I.L.` has a clear product lane: governed script/instruction control plane. It should not be collapsed into generic proof tooling.
 - `V.I.S.O.R.` has the right boundary: human glass over upstream truth, not a second truth source.
@@ -149,7 +145,7 @@ For each active/documented repo:
 
 ## Hard no-go items
 
-- Do not align empty repos. Delete them or park them with one sentence only.
+- Do not recreate empty placeholder repos without a real implementation plan.
 - Do not rename repos during this pass.
 - Do not claim release readiness.
 - Do not claim hosted CI passed without evidence.
