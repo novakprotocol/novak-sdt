@@ -1,0 +1,66 @@
+name: Lexicon Recon Source Snapshot
+
+on:
+  pull_request:
+    branches: [main]
+    paths:
+      - '.github/workflows/lexicon-recon-sources.yml'
+
+permissions:
+  contents: read
+
+jobs:
+  snapshot:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - name: Download pinned reconnaissance files
+        shell: bash
+        run: |
+          set -euxo pipefail
+          mkdir -p recon
+          curl --fail --location --retry 10 --retry-all-errors \
+            --output recon/dwyl_words_alpha.txt \
+            https://raw.githubusercontent.com/dwyl/english-words/20f5cc9b3f0ccc8ce45d814c532b7c2031bba31c/words_alpha.txt
+          curl --fail --location --retry 10 --retry-all-errors \
+            --output recon/websters_dictionary.json \
+            https://raw.githubusercontent.com/ssvivian/WebstersDictionary/e3f886c2c552996e9cce51d91609c2533c2e0c3d/dictionary.json
+          test -s recon/dwyl_words_alpha.txt
+          test -s recon/websters_dictionary.json
+          python - <<'PY'
+          import json
+          from pathlib import Path
+          dwyl = Path('recon/dwyl_words_alpha.txt')
+          webster = Path('recon/websters_dictionary.json')
+          dwyl_count = sum(1 for line in dwyl.open('r', encoding='utf-8', errors='replace') if line.strip())
+          data = json.loads(webster.read_text(encoding='utf-8'))
+          if isinstance(data, list):
+              webster_count = len(data)
+          elif isinstance(data, dict):
+              webster_count = len(data)
+          else:
+              raise TypeError(type(data))
+          metadata = {
+              'dwyl_repository': 'dwyl/english-words',
+              'dwyl_commit': '20f5cc9b3f0ccc8ce45d814c532b7c2031bba31c',
+              'dwyl_file': 'words_alpha.txt',
+              'dwyl_nonblank_lines': dwyl_count,
+              'webster_repository': 'ssvivian/WebstersDictionary',
+              'webster_commit': 'e3f886c2c552996e9cce51d91609c2533c2e0c3d',
+              'webster_file': 'dictionary.json',
+              'webster_top_level_records': webster_count,
+              'role': 'reconnaissance_only_not_eligibility_source',
+          }
+          Path('recon/RECON_SOURCE_METADATA.json').write_text(json.dumps(metadata, indent=2, sort_keys=True), encoding='utf-8')
+          print(metadata)
+          PY
+          sha256sum recon/* > recon/RECON_SOURCE_FILES.sha256
+          ls -lah recon
+
+      - name: Upload pinned reconnaissance snapshot
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: lexicon-recon-source-snapshot
+          path: recon/
+          if-no-files-found: error
+          retention-days: 3
