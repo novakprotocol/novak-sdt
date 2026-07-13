@@ -11,18 +11,126 @@ permissions:
   contents: read
 
 jobs:
-  smoke:
+  full-source-build:
     runs-on: ubuntu-latest
+    timeout-minutes: 360
+    env:
+      SOURCE_URL: https://kaikki.org/dictionary/English/kaikki.org-dictionary-English.jsonl
+      SOURCE_SNAPSHOT: '2026-07-06'
+      TARGET_ROWS: '1000000'
     steps:
-      - name: Create transfer-channel smoke artifact
+      - name: Check out isolated branch
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+
+      - name: Reclaim runner disk
+        shell: bash
         run: |
-          mkdir -p out
-          printf 'kaikki artifact channel operational\n' > out/SMOKE.txt
-          sha256sum out/SMOKE.txt > out/SMOKE.sha256
-      - name: Upload smoke artifact
+          set -euxo pipefail
+          df -h
+          sudo rm -rf /usr/share/dotnet /usr/local/lib/android /opt/ghc /opt/hostedtoolcache/CodeQL || true
+          sudo docker system prune --all --force || true
+          df -h
+
+      - name: Decode and verify build program
+        shell: bash
+        run: |
+          set -euxo pipefail
+          base64 -d tools/kaikki/build_full_english_lexicon.py.gz.b64 | gzip -dc > tools/kaikki/build_full_english_lexicon.py
+          printf '%s  %s\n' 'a39faba2db340eb14e622eff682f8b8c5d38b436e7f34afc8c7d14a88ed18abe' 'tools/kaikki/build_full_english_lexicon.py' | sha256sum -c -
+          python -m py_compile tools/kaikki/build_full_english_lexicon.py
+
+      - name: Install deterministic workbook dependency
+        shell: bash
+        run: |
+          set -euxo pipefail
+          python -m pip install --disable-pip-version-check --no-cache-dir 'XlsxWriter==3.2.5'
+          python - <<'PY'
+          import xlsxwriter
+          print(xlsxwriter.__version__)
+          PY
+
+      - name: Download complete Kaikki English JSONL
+        shell: bash
+        run: |
+          set -euxo pipefail
+          mkdir -p work/source work/out artifact
+          curl --fail --location \
+            --retry 20 --retry-all-errors --retry-delay 10 \
+            --connect-timeout 30 --speed-time 180 --speed-limit 1024 \
+            --dump-header work/source/source-response-headers.txt \
+            --output work/source/kaikki.org-dictionary-English.jsonl \
+            "$SOURCE_URL"
+          test -s work/source/kaikki.org-dictionary-English.jsonl
+          stat --printf='source_bytes=%s\n' work/source/kaikki.org-dictionary-English.jsonl | tee work/source/source-size.txt
+          head -c 256 work/source/kaikki.org-dictionary-English.jsonl | grep -q '"word"'
+          df -h
+
+      - name: Process every source record and build package
+        shell: bash
+        run: |
+          set -o pipefail
+          python tools/kaikki/build_full_english_lexicon.py \
+            --input work/source/kaikki.org-dictionary-English.jsonl \
+            --output-parent work/out \
+            --target "$TARGET_ROWS" \
+            --snapshot "$SOURCE_SNAPSHOT" \
+            --source-url "$SOURCE_URL" \
+            --script-source tools/kaikki/build_full_english_lexicon.py \
+            2>&1 | tee work/out/build.stdout.log
+
+      - name: Independently validate generated artifacts
+        shell: bash
+        run: |
+          set -euxo pipefail
+          python - <<'PY'
+          import hashlib
+          import json
+          import pathlib
+          import zipfile
+
+          out = pathlib.Path('work/out')
+          report = json.loads((out / 'FINAL_BUILD_REPORT.json').read_text(encoding='utf-8'))
+          assert report['structural_tests_pass'] is True, report
+          package = pathlib.Path(report['package_zip'])
+          assert package.is_file() and package.stat().st_size > 0
+          assert hashlib.sha256(package.read_bytes()).hexdigest() == report['package_sha256']
+          with zipfile.ZipFile(package) as zf:
+              assert zf.testzip() is None
+              names = set(zf.namelist())
+              prefix = 'English_Lexicon_1000000_Kaikki_Wiktionary_Full_Source/'
+              required = {
+                  prefix + 'FULL_LEXICON_SELECTED.csv',
+                  prefix + 'English_Lexicon_Kaikki_Wiktionary.xlsx',
+                  prefix + 'FULL_SOURCE_AUDIT.json',
+                  prefix + 'VERIFICATION_REPORT.json',
+                  prefix + 'manifest.json',
+              }
+              assert required.issubset(names), required - names
+          print(json.dumps(report, indent=2, sort_keys=True))
+          PY
+          sha256sum -c work/out/English_Lexicon_1000000_Kaikki_Wiktionary_Full_Source.zip.sha256.txt --ignore-missing
+          find work/out/English_Lexicon_1000000_Kaikki_Wiktionary_Full_Source/A_to_Z_CSV_GZ -name '*.csv.gz' -print0 | xargs -0 -n1 gzip -t
+          df -h
+
+      - name: Stage review deliverables
+        shell: bash
+        run: |
+          set -euxo pipefail
+          cp work/out/English_Lexicon_1000000_Kaikki_Wiktionary_Full_Source.zip artifact/
+          cp work/out/English_Lexicon_1000000_Kaikki_Wiktionary_Full_Source.zip.sha256.txt artifact/
+          cp work/out/FINAL_BUILD_REPORT.json artifact/
+          cp work/out/build.stdout.log artifact/
+          cp work/source/source-response-headers.txt artifact/
+          cp work/source/source-size.txt artifact/
+          cp tools/kaikki/build_full_english_lexicon.py artifact/
+          sha256sum artifact/* > artifact/ARTIFACT_FILES.sha256
+          ls -lah artifact
+
+      - name: Upload complete review package
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
         with:
-          name: kaikki-channel-smoke
-          path: out/
+          name: kaikki-wiktionary-full-english-lexicon
+          path: artifact/
           if-no-files-found: error
+          compression-level: 0
           retention-days: 3
