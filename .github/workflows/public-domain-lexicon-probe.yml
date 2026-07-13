@@ -1,0 +1,66 @@
+name: Public Domain Lexicon Source Probe
+
+on:
+  pull_request:
+    branches: [main]
+    paths:
+      - '.github/workflows/public-domain-lexicon-probe.yml'
+      - 'tools/public_domain_lexicon/**'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  probe:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+      - name: Probe endpoints
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euxo pipefail
+          mkdir -p probe
+          curl -fLssS --retry 5 --retry-all-errors -A 'PublicDomainLexicon/1.0' \
+            -D probe/moby.headers -o probe/moby-files.zip \
+            https://www.gutenberg.org/files/3201/files.zip
+          unzip -t probe/moby-files.zip | tee probe/moby-unzip-test.txt
+          unzip -l probe/moby-files.zip | tee probe/moby-file-list.txt
+          curl -fLssS --retry 5 --retry-all-errors -A 'PublicDomainLexicon/1.0' \
+            -D probe/webster.headers -o probe/webster.txt \
+            https://www.gutenberg.org/files/29765/29765-0.txt
+          wc -c -l probe/webster.txt | tee probe/webster-size.txt
+          curl -LssS --retry 3 --retry-all-errors -A 'PublicDomainLexicon/1.0' \
+            -D probe/opds.headers -o probe/standardebooks-opds.xml \
+            https://standardebooks.org/opds/all || true
+          wc -c probe/standardebooks-opds.xml | tee probe/opds-size.txt
+          head -c 500 probe/standardebooks-opds.xml > probe/opds-head.txt || true
+          EPUB_URL='https://standardebooks.org/ebooks/lewis-carroll/alices-adventures-in-wonderland/john-tenniel/downloads/lewis-carroll_alices-adventures-in-wonderland_john-tenniel.epub'
+          curl -LssS --retry 3 --retry-all-errors -A 'PublicDomainLexicon/1.0' \
+            -D probe/standardebook.headers -o probe/alice.epub "$EPUB_URL" || true
+          file probe/alice.epub | tee probe/alice-file-type.txt
+          stat -c '%s' probe/alice.epub | tee probe/alice-size.txt
+          unzip -t probe/alice.epub | tee probe/alice-unzip-test.txt || true
+          curl -fLssS --retry 3 --retry-all-errors \
+            'https://openlibrary.org/search.json?title=Alice%27s%20Adventures%20in%20Wonderland&author=Lewis%20Carroll&fields=key,title,author_name,first_publish_year&limit=3' \
+            -o probe/openlibrary.json
+          python - <<'PY'
+          import json, pathlib
+          p=pathlib.Path('probe/openlibrary.json')
+          obj=json.loads(p.read_text())
+          pathlib.Path('probe/openlibrary-summary.json').write_text(json.dumps(obj, indent=2)[:20000])
+          print(obj.get('numFound'), obj.get('docs', [])[:1])
+          PY
+          gh api --paginate '/orgs/standardebooks/repos?per_page=100&type=public' \
+            --jq '.[].name' > probe/standardebooks-repos.txt
+          wc -l probe/standardebooks-repos.txt | tee probe/standardebooks-repo-count.txt
+          grep -x 'lewis-carroll_alices-adventures-in-wonderland_john-tenniel' probe/standardebooks-repos.txt
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: public-domain-lexicon-source-probe
+          path: probe/
+          if-no-files-found: error
+          retention-days: 3
