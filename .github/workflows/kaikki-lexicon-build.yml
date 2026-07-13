@@ -36,7 +36,7 @@ jobs:
         run: |
           set -euxo pipefail
           base64 -d tools/kaikki/build_full_english_lexicon.py.gz.b64 | gzip -dc > tools/kaikki/build_full_english_lexicon.py
-          printf '%s  %s\n' 'a39faba2db340eb14e622eff682f8b8c5d38b436e7f34afc8c7d14a88ed18abe' 'tools/kaikki/build_full_english_lexicon.py' | sha256sum -c -
+          printf '%s  %s\n' 'b6468c79da8b053d03c2ad156eab6cd82ad28b5722709ad6aaa1a535e0da4b42' 'tools/kaikki/build_full_english_lexicon.py' | sha256sum -c -
           python -m py_compile tools/kaikki/build_full_english_lexicon.py
 
       - name: Install deterministic workbook dependency
