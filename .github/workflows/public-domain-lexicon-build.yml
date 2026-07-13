@@ -1,0 +1,109 @@
+name: Public Domain Clean-Room Lexicon Build
+
+on:
+  pull_request:
+    branches: [main]
+    paths:
+      - '.github/workflows/public-domain-lexicon-build.yml'
+      - 'tools/public_domain_lexicon/**'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    timeout-minutes: 360
+    steps:
+      - name: Checkout isolated branch
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+
+      - name: Reclaim runner disk
+        shell: bash
+        run: |
+          set -euxo pipefail
+          sudo rm -rf /usr/share/dotnet /usr/local/lib/android /opt/ghc /opt/hostedtoolcache/CodeQL || true
+          sudo docker system prune --all --force || true
+          df -h
+
+      - name: Decode and verify clean-room builder
+        shell: bash
+        run: |
+          set -euxo pipefail
+          base64 -d tools/public_domain_lexicon/build_cleanroom.py.gz.b64 | gzip -dc > tools/public_domain_lexicon/build_cleanroom.py
+          printf '%s  %s\n' '5c46187b109940b3bd5a89ae4af1f4a0df0c4bcf357bc0912e806ad6af51e0c7' 'tools/public_domain_lexicon/build_cleanroom.py' | sha256sum -c -
+          python -m py_compile tools/public_domain_lexicon/build_cleanroom.py
+
+      - name: Build complete data package
+        shell: bash
+        run: |
+          set -o pipefail
+          python tools/public_domain_lexicon/build_cleanroom.py \
+            --corpus tools/public_domain_lexicon/corpus.tsv \
+            --out out --workers 6 2>&1 | tee build.log
+
+      - name: Independently verify package archive
+        shell: bash
+        run: |
+          set -euxo pipefail
+          python - <<'PY'
+          import hashlib, json, pathlib, zipfile
+          out = pathlib.Path('out')
+          report = json.loads((out / 'FINAL_BUILD_REPORT.json').read_text(encoding='utf-8'))
+          package = out / report['package_zip']
+          assert package.is_file() and package.stat().st_size > 0
+          h = hashlib.sha256()
+          with package.open('rb') as f:
+              for block in iter(lambda: f.read(8 * 1024 * 1024), b''):
+                  h.update(block)
+          assert h.hexdigest() == report['package_zip_sha256']
+          with zipfile.ZipFile(package) as zf:
+              assert zf.testzip() is None
+              names = set(zf.namelist())
+              prefix = 'English_Public_Domain_Cleanroom_Lexicon/'
+              required = {
+                  prefix + 'README.md',
+                  prefix + 'data/lexicon_all.csv.gz',
+                  prefix + 'data/lexicon_primary_single_words.csv.gz',
+                  prefix + 'data/cleanroom_lexicon.sqlite',
+                  prefix + 'proof/attestation_corpus_manifest.csv',
+                  prefix + 'proof/source_manifest.json',
+                  prefix + 'proof/verification_report.json',
+                  prefix + 'proof/file_hashes.sha256',
+                  prefix + 'docs/CC0_DEDICATION.md',
+                  prefix + 'docs/RIGHTS_AND_SCOPE.md',
+                  prefix + 'scripts/build_cleanroom.py',
+              }
+              assert required.issubset(names), required - names
+          assert report['verification']['status'] == 'PASS'
+          assert report['lexicon_all_unique'] > 300000
+          assert report['primary_single_words_unique'] > 300000
+          assert report['corpus_documents_successful'] >= 50
+          print(json.dumps(report, indent=2, sort_keys=True))
+          PY
+          (cd out && sha256sum -c English_Public_Domain_Cleanroom_Lexicon.zip.sha256.txt)
+          df -h
+
+      - name: Stage delivery files
+        shell: bash
+        run: |
+          set -euxo pipefail
+          mkdir -p delivery
+          cp out/English_Public_Domain_Cleanroom_Lexicon.zip delivery/
+          cp out/English_Public_Domain_Cleanroom_Lexicon.zip.sha256.txt delivery/
+          cp out/FINAL_BUILD_REPORT.json delivery/
+          cp build.log delivery/
+          cp tools/public_domain_lexicon/build_cleanroom.py delivery/
+          cp tools/public_domain_lexicon/corpus.tsv delivery/
+          sha256sum delivery/* > delivery/ARTIFACT_FILES.sha256
+          ls -lah delivery
+
+      - name: Upload complete data build
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: public-domain-cleanroom-lexicon-data
+          path: delivery/
+          if-no-files-found: error
+          compression-level: 0
+          retention-days: 3
