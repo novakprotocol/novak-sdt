@@ -1,0 +1,28 @@
+name: Kaikki English Lexicon Build
+
+on:
+  pull_request:
+    branches: [main]
+    paths:
+      - '.github/workflows/kaikki-lexicon-build.yml'
+      - 'tools/kaikki/**'
+
+permissions:
+  contents: read
+
+jobs:
+  smoke:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Create transfer-channel smoke artifact
+        run: |
+          mkdir -p out
+          printf 'kaikki artifact channel operational\n' > out/SMOKE.txt
+          sha256sum out/SMOKE.txt > out/SMOKE.sha256
+      - name: Upload smoke artifact
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: kaikki-channel-smoke
+          path: out/
+          if-no-files-found: error
+          retention-days: 3
