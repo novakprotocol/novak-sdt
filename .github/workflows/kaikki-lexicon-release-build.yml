@@ -1,0 +1,161 @@
+name: Kaikki English Lexicon Release Build
+
+on:
+  pull_request:
+    branches: [main]
+    paths:
+      - '.github/workflows/kaikki-lexicon-release-build.yml'
+      - 'tools/kaikki/build_lexicon.py'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  build-and-publish:
+    runs-on: ubuntu-latest
+    timeout-minutes: 360
+    steps:
+      - name: Checkout isolated branch
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+
+      - name: Validate processor presence
+        run: |
+          set -euo pipefail
+          test -s tools/kaikki/build_lexicon.py
+          python -m py_compile tools/kaikki/build_lexicon.py
+          sha256sum tools/kaikki/build_lexicon.py
+
+      - name: Install build dependencies
+        run: |
+          python -m pip install --disable-pip-version-check --no-cache-dir \
+            orjson==3.10.18 openpyxl==3.1.5 XlsxWriter==3.2.5
+
+      - name: Download complete Kaikki English source
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p out
+          INDEX_URL='https://kaikki.org/dictionary/English/index.html'
+          PRIMARY_URL='https://kaikki.org/dictionary/English/kaikki.org-dictionary-English.jsonl'
+          curl -fLssS --retry 8 --retry-all-errors --connect-timeout 45 \
+            -A 'EnglishLexiconProof/2.0 (+reproducible GitHub build)' \
+            "$INDEX_URL" -o /tmp/kaikki-index.html
+          SOURCE_URL="$(python - <<'PY'
+          import re
+          from urllib.parse import urljoin
+          text=open('/tmp/kaikki-index.html',encoding='utf-8',errors='replace').read()
+          links=re.findall(r'href=["\x27]([^"\x27]+)["\x27]',text,re.I)
+          c=[urljoin('https://kaikki.org/dictionary/English/index.html',x) for x in links if 'dictionary-english' in x.lower() and 'jsonl' in x.lower()]
+          print(c[0] if c else 'https://kaikki.org/dictionary/English/kaikki.org-dictionary-English.jsonl')
+          PY
+          )"
+          echo "$SOURCE_URL" | tee out/SOURCE_URL.txt
+          curl -fLssS --retry 12 --retry-all-errors --retry-delay 20 --connect-timeout 60 \
+            -A 'EnglishLexiconProof/2.0 (+reproducible GitHub build)' \
+            -H 'Accept-Encoding: identity' -D out/source_http_headers.txt \
+            -o /tmp/kaikki-download "$SOURCE_URL"
+          TYPE="$(file -b /tmp/kaikki-download)"
+          echo "$TYPE" | tee out/SOURCE_FILE_TYPE.txt
+          case "$SOURCE_URL:$TYPE" in
+            *.gz:*|*:gzip*) gzip -dc /tmp/kaikki-download > /tmp/kaikki-English.jsonl ;;
+            *.bz2:*|*:bzip2*) bzip2 -dc /tmp/kaikki-download > /tmp/kaikki-English.jsonl ;;
+            *.zst:*|*:Zstandard*) zstd -dc /tmp/kaikki-download > /tmp/kaikki-English.jsonl ;;
+            *) mv /tmp/kaikki-download /tmp/kaikki-English.jsonl ;;
+          esac
+          BYTES="$(stat -c '%s' /tmp/kaikki-English.jsonl)"
+          LINES="$(wc -l < /tmp/kaikki-English.jsonl)"
+          printf 'bytes=%s\nlines=%s\n' "$BYTES" "$LINES" | tee out/SOURCE_SIZE.txt
+          test "$BYTES" -gt 1000000000
+          test "$LINES" -gt 500000
+          sha256sum /tmp/kaikki-English.jsonl | tee out/SOURCE_JSONL.sha256
+
+      - name: Build full and million-row packages
+        shell: bash
+        run: |
+          set -euo pipefail
+          python tools/kaikki/build_lexicon.py \
+            --source /tmp/kaikki-English.jsonl \
+            --source-url "$(cat out/SOURCE_URL.txt)" \
+            --source-headers out/source_http_headers.txt \
+            --out out --target 1000000 2>&1 | tee out/BUILD.log
+
+      - name: Run external verification and assign stable filenames
+        shell: bash
+        run: |
+          set -euo pipefail
+          python - <<'PY'
+          import hashlib,json,pathlib,zipfile
+          root=pathlib.Path('out')
+          summary=json.loads((root/'BUILD_SUMMARY.json').read_text())
+          source_zip=root/summary['package_zip']
+          stable=root/'English_Lexicon_Kaikki_Wiktionary_Full_Verified.zip'
+          source_zip.replace(stable)
+          h=hashlib.sha256()
+          with stable.open('rb') as f:
+              for block in iter(lambda:f.read(8*1024*1024),b''): h.update(block)
+          digest=h.hexdigest()
+          (root/'English_Lexicon_Kaikki_Wiktionary_Full_Verified.zip.sha256.txt').write_text(digest+'  '+stable.name+'\n')
+          with zipfile.ZipFile(stable) as z:
+              bad=z.testzip()
+              if bad: raise SystemExit('CRC failure: '+bad)
+              names=z.namelist()
+              prefix=next(n.split('/')[0] for n in names if n.endswith('/README.md'))
+              manifest=json.loads(z.read(prefix+'/proof/manifest.json'))
+              embedded=json.loads(z.read(prefix+'/proof/verification_report.json'))
+          report={
+              'status':'PASS' if manifest.get('target_met') and manifest.get('million_rows')==1000000 else 'SOURCE_COMPLETE_TARGET_NOT_MET',
+              'zip_crc':'PASS','zip_sha256':digest,'source_url':manifest.get('source_url'),
+              'source_sha256':manifest.get('source_sha256'),'source_lines':manifest.get('source_lines'),
+              'full_accepted_unique':manifest.get('full_accepted_unique'),'million_rows':manifest.get('million_rows'),
+              'target_met':manifest.get('target_met'),'embedded_verification':embedded,
+              'recon_not_used_for_acceptance':True,
+          }
+          (root/'INDEPENDENT_RUNNER_VERIFICATION.json').write_text(json.dumps(report,indent=2))
+          (root/'BUILD_SUMMARY_STABLE.json').write_text(json.dumps({**summary,'stable_package':stable.name,'stable_sha256':digest},indent=2))
+          print(json.dumps(report,indent=2))
+          PY
+
+      - name: Publish temporary proof release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          TAG='kaikki-full-english-20260713-v1'
+          gh release delete "$TAG" --cleanup-tag --yes >/dev/null 2>&1 || true
+          gh release create "$TAG" \
+            out/English_Lexicon_Kaikki_Wiktionary_Full_Verified.zip \
+            out/English_Lexicon_Kaikki_Wiktionary_Full_Verified.zip.sha256.txt \
+            out/BUILD_SUMMARY_STABLE.json \
+            out/INDEPENDENT_RUNNER_VERIFICATION.json \
+            out/SOURCE_JSONL.sha256 \
+            --target '${{ github.event.pull_request.head.sha || github.sha }}' \
+            --title 'Kaikki/Wiktionary full English lexicon proof build' \
+            --notes 'Full-source reproducible build requested for independent review. The attached manifest and verification report state the exact accepted count and whether the one-million target was met.' \
+            --prerelease
+
+      - name: Upload Actions copy
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: kaikki-english-lexicon-full-release-proof
+          path: |
+            out/English_Lexicon_Kaikki_Wiktionary_Full_Verified.zip
+            out/English_Lexicon_Kaikki_Wiktionary_Full_Verified.zip.sha256.txt
+            out/BUILD_SUMMARY_STABLE.json
+            out/INDEPENDENT_RUNNER_VERIFICATION.json
+            out/BUILD.log
+            out/SOURCE_URL.txt
+            out/SOURCE_SIZE.txt
+            out/SOURCE_FILE_TYPE.txt
+            out/SOURCE_JSONL.sha256
+            out/source_http_headers.txt
+            out/progress.json
+          if-no-files-found: warn
+          compression-level: 0
+          retention-days: 3
+
+      - name: Remove raw source
+        if: always()
+        run: rm -f /tmp/kaikki-English.jsonl /tmp/kaikki-download /tmp/kaikki-index.html
