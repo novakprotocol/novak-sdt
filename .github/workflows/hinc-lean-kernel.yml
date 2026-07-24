@@ -13,13 +13,13 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 60
     env:
-      SOURCE_HEAD: 31e89829ea590c8e7e69ecaaaba7aa965738c65a
+      SOURCE_HEAD: 8ccf90b05a0ab4fb45774e9dd8ba7b3c9a59cd8c
       PROJECT_DIR: source/formal/hinc-lean-kernel-v1
     steps:
       - name: Check out immutable source
         uses: actions/checkout@v4
         with:
-          ref: 31e89829ea590c8e7e69ecaaaba7aa965738c65a
+          ref: 8ccf90b05a0ab4fb45774e9dd8ba7b3c9a59cd8c
           path: source
           fetch-depth: 1
 
