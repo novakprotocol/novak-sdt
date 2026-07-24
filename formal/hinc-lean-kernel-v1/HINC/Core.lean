@@ -13,28 +13,12 @@ namespace HINC
 
 variable {R : Type*} [CommRing R] [CharP R 2]
 
-lemma two_eq_zero : (2 : R) = 0 := by
-  norm_num
+lemma two_eq_zero : (2 : R) = 0 := CharTwo.two_eq_zero
 
-lemma neg_eq_self (a : R) : -a = a := by
-  have h2 : (2 : R) = 0 := two_eq_zero
-  calc
-    -a = a - 2 * a := by ring
-    _ = a := by rw [h2]; ring
+lemma neg_eq_self (a : R) : -a = a := CharTwo.neg_eq a
 
-lemma add_eq_zero_iff_eq (a b : R) : a + b = 0 ↔ a = b := by
-  constructor
-  · intro h
-    calc
-      a = a + b - b := by ring
-      _ = -b := by rw [h]; ring
-      _ = b := neg_eq_self b
-  · intro h
-    rw [h]
-    have h2 : (2 : R) = 0 := two_eq_zero
-    calc
-      b + b = 2 * b := by ring
-      _ = 0 := by rw [h2]; ring
+lemma add_eq_zero_iff_eq (a b : R) : a + b = 0 ↔ a = b :=
+  CharTwo.add_eq_zero
 
 /-- The reduced crossing `x (y - 1) = 0`. -/
 structure CrossingPoint (R : Type*) [CommRing R] where
@@ -43,6 +27,13 @@ structure CrossingPoint (R : Type*) [CommRing R] where
   rel : x * (y - 1) = 0
 
 namespace CrossingPoint
+
+@[ext]
+theorem ext {p q : CrossingPoint R}
+    (hx : p.x = q.x) (hy : p.y = q.y) : p = q := by
+  cases p
+  cases q
+  simp_all
 
 variable (R)
 
@@ -86,6 +77,14 @@ structure EvenPoint (R : Type*) [CommRing R] extends CrossingPoint R where
   esq : e * e = 0
 
 namespace EvenPoint
+
+@[ext]
+theorem ext {p q : EvenPoint R}
+    (hbase : p.toCrossingPoint = q.toCrossingPoint)
+    (he : p.e = q.e) : p = q := by
+  cases p
+  cases q
+  simp_all
 
 variable (R)
 
@@ -232,7 +231,7 @@ theorem affine_commutator_second
       ring
     _ = -d - b * c + a * d + c := by rw [hb_bid, hab_aic]
     _ = (a + 1) * d + (b + 1) * c := by
-      rw [neg_eq_self d, neg_eq_self (b * c)]
+      simp only [CharTwo.neg_eq, CharTwo.sub_eq_add]
       ring
 
 /-- Combined commutator formula for the affine unit law. -/
