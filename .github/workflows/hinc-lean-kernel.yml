@@ -1,0 +1,100 @@
+name: HINC Lean formal kernel
+
+on:
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  compile:
+    name: Compile HINC formal kernel
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    env:
+      SOURCE_HEAD: 8ccf90b05a0ab4fb45774e9dd8ba7b3c9a59cd8c
+      PROJECT_DIR: source/formal/hinc-lean-kernel-v1
+    steps:
+      - name: Check out immutable source
+        uses: actions/checkout@v4
+        with:
+          ref: 8ccf90b05a0ab4fb45774e9dd8ba7b3c9a59cd8c
+          path: source
+          fetch-depth: 1
+
+      - name: Verify source and placeholders
+        shell: bash
+        run: |
+          set -euo pipefail
+          test "$(git -C source rev-parse HEAD)" = "$SOURCE_HEAD"
+          cd "$PROJECT_DIR"
+          ! grep -R -n -E '\bsorry\b|\badmit\b|^axiom\b|\bunsafe\b' --include='*.lean' .
+          sha256sum HINC.lean HINC/Core.lean lakefile.lean lean-toolchain | tee "$RUNNER_TEMP/source-sha256.txt"
+
+      - name: Install pinned Lean toolchain
+        shell: bash
+        run: |
+          set -euo pipefail
+          curl --proto '=https' --tlsv1.2 -sSf https://raw.githubusercontent.com/leanprover/elan/master/elan-init.sh \
+            | sh -s -- -y --default-toolchain none
+          echo "$HOME/.elan/bin" >> "$GITHUB_PATH"
+          "$HOME/.elan/bin/elan" toolchain install leanprover/lean4:v4.30.0
+          "$HOME/.elan/bin/elan" default leanprover/lean4:v4.30.0
+          "$HOME/.elan/bin/lean" --version | tee "$RUNNER_TEMP/lean-version.txt"
+          "$HOME/.elan/bin/lake" --version | tee "$RUNNER_TEMP/lake-version.txt"
+
+      - name: Resolve Mathlib and obtain cache
+        shell: bash
+        run: |
+          set -euo pipefail
+          cd "$PROJECT_DIR"
+          lake update 2>&1 | tee "$RUNNER_TEMP/lake-update.log"
+          lake exe cache get 2>&1 | tee "$RUNNER_TEMP/cache-get.log"
+
+      - name: Compile formal kernel
+        id: build
+        shell: bash
+        run: |
+          set +e
+          cd "$PROJECT_DIR"
+          lake build 2>&1 | tee "$RUNNER_TEMP/build.log"
+          code=${PIPESTATUS[0]}
+          printf 'exit_code=%s\n' "$code" >> "$GITHUB_OUTPUT"
+          exit 0
+
+      - name: Record axiom report
+        if: steps.build.outputs.exit_code == '0'
+        shell: bash
+        run: |
+          set -euo pipefail
+          cd "$PROJECT_DIR"
+          lake env lean HINC/Core.lean 2>&1 | tee "$RUNNER_TEMP/axiom-report.txt"
+          if grep -E 'sorryAx|declaration uses.*axiom' "$RUNNER_TEMP/axiom-report.txt"; then
+            echo 'Unexpected proof axiom detected.' >&2
+            exit 1
+          fi
+
+      - name: Upload formal evidence and diagnostics
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: hinc-formal-${{ github.run_id }}
+          path: |
+            ${{ runner.temp }}/source-sha256.txt
+            ${{ runner.temp }}/lean-version.txt
+            ${{ runner.temp }}/lake-version.txt
+            ${{ runner.temp }}/lake-update.log
+            ${{ runner.temp }}/cache-get.log
+            ${{ runner.temp }}/build.log
+            ${{ runner.temp }}/axiom-report.txt
+          if-no-files-found: warn
+          retention-days: 90
+
+      - name: Preserve build result
+        if: always()
+        shell: bash
+        env:
+          BUILD_EXIT_CODE: ${{ steps.build.outputs.exit_code }}
+        run: |
+          test "${BUILD_EXIT_CODE:-1}" = "0"
