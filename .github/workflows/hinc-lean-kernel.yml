@@ -11,7 +11,7 @@ jobs:
   compile:
     name: Compile HINC formal kernel
     runs-on: ubuntu-latest
-    timeout-minutes: 45
+    timeout-minutes: 60
     env:
       SOURCE_HEAD: 31e89829ea590c8e7e69ecaaaba7aa965738c65a
       PROJECT_DIR: source/formal/hinc-lean-kernel-v1
@@ -32,17 +32,25 @@ jobs:
           ! grep -R -n -E '\bsorry\b|\badmit\b|^axiom\b|\bunsafe\b' --include='*.lean' .
           sha256sum HINC.lean HINC/Core.lean lakefile.lean lean-toolchain | tee "$RUNNER_TEMP/source-sha256.txt"
 
-      - name: Install pinned Lean and Mathlib cache
-        uses: leanprover/lean-action@v1
-        with:
-          lake-package-directory: source/formal/hinc-lean-kernel-v1
-          auto-config: false
-          build: false
-          test: false
-          lint: false
-          use-github-cache: false
-          use-mathlib-cache: true
-          nanoda: false
+      - name: Install pinned Lean toolchain
+        shell: bash
+        run: |
+          set -euo pipefail
+          curl --proto '=https' --tlsv1.2 -sSf https://raw.githubusercontent.com/leanprover/elan/master/elan-init.sh \
+            | sh -s -- -y --default-toolchain none
+          echo "$HOME/.elan/bin" >> "$GITHUB_PATH"
+          "$HOME/.elan/bin/elan" toolchain install leanprover/lean4:v4.30.0
+          "$HOME/.elan/bin/elan" default leanprover/lean4:v4.30.0
+          "$HOME/.elan/bin/lean" --version | tee "$RUNNER_TEMP/lean-version.txt"
+          "$HOME/.elan/bin/lake" --version | tee "$RUNNER_TEMP/lake-version.txt"
+
+      - name: Resolve Mathlib and obtain cache
+        shell: bash
+        run: |
+          set -euo pipefail
+          cd "$PROJECT_DIR"
+          lake update 2>&1 | tee "$RUNNER_TEMP/lake-update.log"
+          lake exe cache get 2>&1 | tee "$RUNNER_TEMP/cache-get.log"
 
       - name: Compile formal kernel
         id: build
@@ -50,8 +58,6 @@ jobs:
         run: |
           set +e
           cd "$PROJECT_DIR"
-          lean --version | tee "$RUNNER_TEMP/lean-version.txt"
-          lake --version | tee "$RUNNER_TEMP/lake-version.txt"
           lake build 2>&1 | tee "$RUNNER_TEMP/build.log"
           code=${PIPESTATUS[0]}
           printf 'exit_code=%s\n' "$code" >> "$GITHUB_OUTPUT"
@@ -78,6 +84,8 @@ jobs:
             ${{ runner.temp }}/source-sha256.txt
             ${{ runner.temp }}/lean-version.txt
             ${{ runner.temp }}/lake-version.txt
+            ${{ runner.temp }}/lake-update.log
+            ${{ runner.temp }}/cache-get.log
             ${{ runner.temp }}/build.log
             ${{ runner.temp }}/axiom-report.txt
           if-no-files-found: warn
