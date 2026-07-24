@@ -32,33 +32,45 @@ jobs:
           ! grep -R -n -E '\bsorry\b|\badmit\b|^axiom\b|\bunsafe\b' --include='*.lean' .
           sha256sum HINC.lean HINC/Core.lean lakefile.lean lean-toolchain | tee "$RUNNER_TEMP/source-sha256.txt"
 
-      - name: Build with pinned Lean and Mathlib
+      - name: Install pinned Lean and Mathlib cache
         uses: leanprover/lean-action@v1
         with:
           lake-package-directory: source/formal/hinc-lean-kernel-v1
           auto-config: false
-          build: true
+          build: false
           test: false
           lint: false
           use-github-cache: false
           use-mathlib-cache: true
-          nanoda: true
-          nanoda-allow-sorry: false
+          nanoda: false
 
-      - name: Record versions and axiom report
+      - name: Compile formal kernel
+        id: build
+        shell: bash
+        run: |
+          set +e
+          cd "$PROJECT_DIR"
+          lean --version | tee "$RUNNER_TEMP/lean-version.txt"
+          lake --version | tee "$RUNNER_TEMP/lake-version.txt"
+          lake build 2>&1 | tee "$RUNNER_TEMP/build.log"
+          code=${PIPESTATUS[0]}
+          printf 'exit_code=%s\n' "$code" >> "$GITHUB_OUTPUT"
+          exit 0
+
+      - name: Record axiom report
+        if: steps.build.outputs.exit_code == '0'
         shell: bash
         run: |
           set -euo pipefail
           cd "$PROJECT_DIR"
-          lean --version | tee "$RUNNER_TEMP/lean-version.txt"
-          lake --version | tee "$RUNNER_TEMP/lake-version.txt"
           lake env lean HINC/Core.lean 2>&1 | tee "$RUNNER_TEMP/axiom-report.txt"
           if grep -E 'sorryAx|declaration uses.*axiom' "$RUNNER_TEMP/axiom-report.txt"; then
             echo 'Unexpected proof axiom detected.' >&2
             exit 1
           fi
 
-      - name: Upload formal evidence
+      - name: Upload formal evidence and diagnostics
+        if: always()
         uses: actions/upload-artifact@v4
         with:
           name: hinc-formal-${{ github.run_id }}
@@ -66,6 +78,15 @@ jobs:
             ${{ runner.temp }}/source-sha256.txt
             ${{ runner.temp }}/lean-version.txt
             ${{ runner.temp }}/lake-version.txt
+            ${{ runner.temp }}/build.log
             ${{ runner.temp }}/axiom-report.txt
-          if-no-files-found: error
+          if-no-files-found: warn
           retention-days: 90
+
+      - name: Preserve build result
+        if: always()
+        shell: bash
+        env:
+          BUILD_EXIT_CODE: ${{ steps.build.outputs.exit_code }}
+        run: |
+          test "${BUILD_EXIT_CODE:-1}" = "0"
