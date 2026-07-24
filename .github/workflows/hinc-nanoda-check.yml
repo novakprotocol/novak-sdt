@@ -1,0 +1,34 @@
+name: HINC independent nanoda check
+
+on:
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  nanoda:
+    name: Rebuild and independently kernel-check HINC
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    steps:
+      - name: Check out immutable repaired source
+        uses: actions/checkout@v4
+        with:
+          ref: 8ccf90b05a0ab4fb45774e9dd8ba7b3c9a59cd8c
+          path: source
+          fetch-depth: 1
+
+      - name: Build and run nanoda
+        uses: leanprover/lean-action@v1
+        with:
+          lake-package-directory: source/formal/hinc-lean-kernel-v1
+          auto-config: false
+          build: true
+          test: false
+          lint: false
+          use-github-cache: false
+          use-mathlib-cache: true
+          nanoda: true
+          nanoda-allow-sorry: false
