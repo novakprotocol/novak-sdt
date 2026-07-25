@@ -254,7 +254,11 @@ theorem ext {a b : OddEndoData R}
     (hrho : a.rho = b.rho) : a = b := by
   cases a
   cases b
-  simp_all
+  cases hlam
+  cases hmu
+  cases hp
+  cases hrho
+  rfl
 
 variable (R)
 
