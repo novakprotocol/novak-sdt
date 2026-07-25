@@ -1,0 +1,166 @@
+name: HINC principal classification Lean gate
+
+on:
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: hinc-principal-classification-v1
+  cancel-in-progress: false
+
+jobs:
+  compile:
+    name: Compile principal HINC classification
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    env:
+      SOURCE_HEAD: d7751d1de76253407016ef4bf92738cffa800e82
+      PROJECT_DIR: source/formal/hinc-lean-kernel-v1
+    steps:
+      - name: Check out immutable source
+        uses: actions/checkout@v4
+        with:
+          ref: d7751d1de76253407016ef4bf92738cffa800e82
+          path: source
+          fetch-depth: 1
+
+      - name: Verify source identity and placeholders
+        shell: bash
+        run: |
+          set -euo pipefail
+          test "$(git -C source rev-parse HEAD)" = "$SOURCE_HEAD"
+          cd "$PROJECT_DIR"
+          ! grep -R -n -E '\bsorry\b|\badmit\b|^axiom\b|\bunsafe\b' --include='*.lean' .
+          sha256sum \
+            HINC.lean \
+            HINC/Core.lean \
+            HINC/Classification.lean \
+            lakefile.lean \
+            lean-toolchain \
+            | tee "$RUNNER_TEMP/source-sha256.txt"
+
+      - name: Install pinned Lean toolchain
+        shell: bash
+        run: |
+          set -euo pipefail
+          curl --proto '=https' --tlsv1.2 -sSf \
+            https://raw.githubusercontent.com/leanprover/elan/master/elan-init.sh \
+            | sh -s -- -y --default-toolchain none
+          echo "$HOME/.elan/bin" >> "$GITHUB_PATH"
+          "$HOME/.elan/bin/elan" toolchain install leanprover/lean4:v4.30.0
+          "$HOME/.elan/bin/elan" default leanprover/lean4:v4.30.0
+          "$HOME/.elan/bin/lean" --version | tee "$RUNNER_TEMP/lean-version.txt"
+          "$HOME/.elan/bin/lake" --version | tee "$RUNNER_TEMP/lake-version.txt"
+
+      - name: Resolve Mathlib and obtain cache
+        shell: bash
+        run: |
+          set -euo pipefail
+          cd "$PROJECT_DIR"
+          lake update 2>&1 | tee "$RUNNER_TEMP/lake-update.log"
+          lake exe cache get 2>&1 | tee "$RUNNER_TEMP/cache-get.log"
+
+      - name: Compile formal library
+        id: build
+        shell: bash
+        run: |
+          set +e
+          cd "$PROJECT_DIR"
+          lake build 2>&1 | tee "$RUNNER_TEMP/build.log"
+          code=${PIPESTATUS[0]}
+          printf 'exit_code=%s\n' "$code" >> "$GITHUB_OUTPUT"
+          exit 0
+
+      - name: Record classification axiom report
+        if: steps.build.outputs.exit_code == '0'
+        shell: bash
+        run: |
+          set -euo pipefail
+          cd "$PROJECT_DIR"
+          lake env lean HINC/Classification.lean 2>&1 \
+            | tee "$RUNNER_TEMP/classification-axiom-report.txt"
+          if grep -E 'sorryAx' "$RUNNER_TEMP/classification-axiom-report.txt"; then
+            echo 'Unexpected sorryAx dependency detected.' >&2
+            exit 1
+          fi
+
+      - name: Build machine-readable receipt
+        if: steps.build.outputs.exit_code == '0'
+        shell: bash
+        run: |
+          set -euo pipefail
+          python - "$RUNNER_TEMP/formal-receipt.json" <<'PY'
+          import hashlib
+          import json
+          import os
+          import pathlib
+          import sys
+
+          output = pathlib.Path(sys.argv[1])
+          project = pathlib.Path(os.environ["PROJECT_DIR"])
+          temp = pathlib.Path(os.environ["RUNNER_TEMP"])
+
+          def sha256(path: pathlib.Path) -> str:
+              return hashlib.sha256(path.read_bytes()).hexdigest()
+
+          receipt = {
+              "schema_version": "n.human_ai_math.hinc_principal_classification_lean.v1",
+              "result": "PASS",
+              "github_repository": os.environ.get("GITHUB_REPOSITORY"),
+              "github_run_id": os.environ.get("GITHUB_RUN_ID"),
+              "github_run_attempt": os.environ.get("GITHUB_RUN_ATTEMPT"),
+              "source_head": os.environ["SOURCE_HEAD"],
+              "exact_source_commit_checked_out": True,
+              "lean_toolchain": (project / "lean-toolchain").read_text(encoding="utf-8").strip(),
+              "mathlib_revision": "v4.30.0",
+              "lake_build_passed": True,
+              "placeholder_gate_passed": True,
+              "sorry_ax_present": False,
+              "core_source_sha256": sha256(project / "HINC" / "Core.lean"),
+              "classification_source_sha256": sha256(project / "HINC" / "Classification.lean"),
+              "axiom_report_sha256": sha256(temp / "classification-axiom-report.txt"),
+              "verified_scope": [
+                  "even generator equations iff normal form",
+                  "even normalized composition closure identity associativity",
+                  "even coefficient-level principal classification",
+                  "odd generator equations iff normal form",
+                  "odd normalized composition closure identity associativity commutativity",
+                  "odd coefficient-level principal classification"
+              ],
+              "generator_to_global_gerstenhaber_preservation_formalized": False,
+              "full_manuscript_formalized": False,
+              "external_specialist_reviewed": False,
+              "historical_priority_established": False,
+              "public_release_authorized": False
+          }
+          output.write_text(json.dumps(receipt, indent=2, sort_keys=True) + "\n", encoding="utf-8")
+          print(json.dumps(receipt, indent=2, sort_keys=True))
+          PY
+
+      - name: Upload formal evidence and diagnostics
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: hinc-principal-classification-${{ github.run_id }}
+          path: |
+            ${{ runner.temp }}/source-sha256.txt
+            ${{ runner.temp }}/lean-version.txt
+            ${{ runner.temp }}/lake-version.txt
+            ${{ runner.temp }}/lake-update.log
+            ${{ runner.temp }}/cache-get.log
+            ${{ runner.temp }}/build.log
+            ${{ runner.temp }}/classification-axiom-report.txt
+            ${{ runner.temp }}/formal-receipt.json
+          if-no-files-found: warn
+          retention-days: 90
+
+      - name: Preserve build result
+        if: always()
+        shell: bash
+        env:
+          BUILD_EXIT_CODE: ${{ steps.build.outputs.exit_code }}
+        run: |
+          test "${BUILD_EXIT_CODE:-1}" = "0"
